@@ -1168,7 +1168,7 @@ function openDashboard(){
 }
 
 // ── AUTH ─────────────────────────────────────────
-async function sendOTP(mobile){
+async function sendOTP(sms){
   const otp = String(Math.floor(100000+Math.random()*900000));
   OTP = otp;
   try{
