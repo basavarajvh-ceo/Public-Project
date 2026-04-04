@@ -1168,11 +1168,11 @@ function openDashboard(){
 }
 
 // ── AUTH ─────────────────────────────────────────
-async function sendOTP(sms){
+async function sendOTP(mobile){
   const otp = String(Math.floor(100000+Math.random()*900000));
   OTP = otp;
   try{
-    const url=`https://2factor.in/API/V1/${CFG.TF_KEY}/SMS/${mobile}/${otp}/AUTOGEN2`;
+    const url=`https://2factor.in/API/V1/${CFG.TF_KEY}/SMS/${mobile}/${otp}/AUTOGEN`;
     const r=await fetch(url);
     const d=await r.json();
     if(d.Status==='Success'){ toast('OTP sent to +91'+mobile); return true; }
