@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Public Project — Admin Panel</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, orderBy, limit, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC5PjXMJR9M9Zk5FPSeybkH8UEmrFNkk7Q",
+  authDomain: "public-project-026.firebaseapp.com",
+  projectId: "public-project-026",
+  storageBucket: "public-project-026.firebasestorage.app",
+  messagingSenderId: "512588357820",
+  appId: "1:512588357820:web:aae6c22ebfa7eb4605f0b9"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+const auth = getAuth(app);
+window._auth = auth;
+
+window.DB = {
+  async getProjects(){
+    const snap = await getDocs(collection(db,'projects'));
+    return snap.docs.map(d=>({id:d.id,...d.data()}));
+  },
+  async saveProject(p){
+    const {id,...data}=p;
+    await setDoc(doc(db,'projects',id),{...data,updatedAt:serverTimestamp()});
+  },
+  async getUsers(){
+    const snap = await getDocs(collection(db,'users'));
+    return snap.docs.map(d=>({id:d.id,...d.data()}));
+  },
+  async saveUser(u){
+    await setDoc(doc(db,'users',u.id),{...u,updatedAt:serverTimestamp()});
+  },
+  async getLogs(){
+    try{
+      const snap = await getDocs(query(collection(db,'audit'),orderBy('time','desc'),limit(100)));
+      return snap.docs.map(d=>d.data());
+    }catch(e){ return []; }
+  },
+  async addLog(entry){
+    await addDoc(collection(db,'audit'),{...entry,time:serverTimestamp()});
+  },
+  async getContacts(){
+    try{
+      const snap = await getDocs(collection(db,'contacts'));
+      return snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){ return []; }
+  },
+  async saveContact(c){
+    await addDoc(collection(db,'contacts'),{...c,time:serverTimestamp()});
+  }
+};
+window.RecaptchaVerifier = RecaptchaVerifier;
+window.signInWithPhoneNumber = signInWithPhoneNumber;
+window.dispatchEvent(new Event('firebaseReady'));
+</script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh;}
+:root{--navy:#1B3A7A;--orange:#F97316;--green:#059669;--red:#dc2626;--purple:#7c3aed;}
+
+/* Lock screen */
+#lockScreen{position:fixed;inset:0;background:#0f1117;display:flex;align-items:center;justify-content:center;z-index:999;padding:20px;}
+#adminApp{display:none;}
+
+/* Sidebar */
+#sidebar{position:fixed;left:0;top:0;bottom:0;width:240px;background:#161b27;border-right:1px solid #1e293b;display:flex;flex-direction:column;z-index:50;}
+#mainContent{margin-left:240px;min-height:100vh;padding:24px;}
+
+/* Cards */
+.card{background:#161b27;border:1px solid #1e293b;border-radius:14px;}
+.card-inner{background:#1e293b;border:1px solid #293548;border-radius:10px;}
+
+/* Buttons */
+.btn{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;border:none;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px;border-radius:10px;}
+.btn-orange{background:var(--orange);color:#fff;padding:9px 18px;font-size:13px;}
+.btn-orange:hover{background:#ea580c;}
+.btn-navy{background:#1B3A7A;color:#fff;padding:9px 18px;font-size:13px;}
+.btn-navy:hover{background:#102550;}
+.btn-green{background:var(--green);color:#fff;padding:9px 18px;font-size:13px;}
+.btn-green:hover{background:#047857;}
+.btn-red{background:var(--red);color:#fff;padding:7px 14px;font-size:12px;}
+.btn-red:hover{background:#b91c1c;}
+.btn-ghost{background:#1e293b;color:#94a3b8;padding:7px 14px;font-size:12px;}
+.btn-ghost:hover{background:#293548;color:#e2e8f0;}
+.btn-sm{padding:6px 12px;font-size:12px;}
+
+/* Form */
+.form-input{width:100%;background:#0f1117;border:1.5px solid #1e293b;border-radius:10px;padding:10px 14px;font-size:14px;color:#e2e8f0;font-family:'Plus Jakarta Sans',sans-serif;outline:none;transition:.15s;}
+.form-input:focus{border-color:#3b82f6;}
+.form-input option{background:#0f1117;}
+label.fl{display:block;font-size:11px;font-weight:700;color:#64748b;letter-spacing:.06em;margin-bottom:5px;}
+
+/* Badges */
+.badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;white-space:nowrap;}
+.badge-green{background:#064e3b;color:#34d399;}
+.badge-yellow{background:#451a03;color:#fbbf24;}
+.badge-red{background:#450a0a;color:#f87171;}
+.badge-blue{background:#1e3a5f;color:#60a5fa;}
+.badge-purple{background:#2e1065;color:#c4b5fd;}
+
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid #1e293b;margin-bottom:20px;}
+.tab-btn{padding:10px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:#64748b;border-bottom:2px solid transparent;margin-bottom:-1px;font-family:'Plus Jakarta Sans',sans-serif;transition:.15s;}
+.tab-btn.active{color:#60a5fa;border-bottom-color:#3b82f6;}
+
+/* Nav item */
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#64748b;transition:.15s;margin:2px 8px;}
+.nav-item:hover{background:#1e293b;color:#e2e8f0;}
+.nav-item.active{background:#1e293b;color:#60a5fa;}
+.nav-item i{width:16px;text-align:center;}
+
+/* Stat */
+.stat-card{background:#161b27;border:1px solid #1e293b;border-radius:12px;padding:16px;text-align:center;}
+.stat-num{font-size:28px;font-weight:900;line-height:1;}
+.stat-label{font-size:11px;color:#64748b;margin-top:4px;font-weight:600;}
+
+/* Modal */
+.modal{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px;}
+.modal.open{display:flex;}
+.modal-box{background:#161b27;border:1px solid #1e293b;border-radius:18px;width:100%;max-height:90vh;overflow-y:auto;position:relative;padding:28px;}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;right:24px;z-index:999;transform:translateY(120px);transition:.3s;}
+#toast.show{transform:translateY(0);}
+
+/* Progress */
+.progress-bar{height:6px;border-radius:99px;background:#1e293b;overflow:hidden;}
+.progress-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#3b82f6,#60a5fa);}
+
+/* Spinner */
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+@media(max-width:768px){
+  #sidebar{width:100%;height:auto;position:static;flex-direction:row;overflow-x:auto;}
+  #mainContent{margin-left:0;}
+  .hide-mobile{display:none!important;}
+}
+</style>
+</head>
+<body>
+<div id="recaptcha-container-admin"></div>
+
+<!-- ═══════════════ LOCK SCREEN ═══════════════ -->
+<div id="lockScreen">
+  <div style="background:#161b27;border:1px solid #1e293b;border-radius:20px;padding:40px;max-width:400px;width:100%;text-align:center;">
+    <div style="width:64px;height:64px;background:#1B3A7A;border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+      <i class="fas fa-shield-alt" style="color:#fff;font-size:26px;"></i>
+    </div>
+    <h2 style="font-family:'Playfair Display',serif;font-size:24px;color:#f1f5f9;margin-bottom:6px;">Admin Access</h2>
+    <p style="color:#64748b;font-size:13px;margin-bottom:28px;">Public Project — Restricted Panel</p>
+
+    <div id="lockStep1">
+      <label class="fl" style="text-align:left;">ADMIN MOBILE NUMBER</label>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <div style="background:#0f1117;border:1.5px solid #1e293b;border-radius:10px;padding:10px 14px;font-weight:700;color:#64748b;font-size:14px;flex-shrink:0;">+91</div>
+        <input id="adminMobile" class="form-input" placeholder="10-digit number" maxlength="10" type="tel" onkeypress="if(event.key==='Enter')sendAdminOTP()">
+      </div>
+      <label class="fl" style="text-align:left;">ADMIN PASSWORD</label>
+      <input id="adminPass" class="form-input" type="password" placeholder="Enter admin password" style="margin-bottom:20px;" onkeypress="if(event.key==='Enter')sendAdminOTP()">
+      <button class="btn btn-orange" onclick="sendAdminOTP()" id="adminOTPBtn" style="width:100%;justify-content:center;font-size:14px;padding:12px;">
+        <i class="fas fa-mobile-alt"></i>Send OTP to Verify
+      </button>
+    </div>
+
+    <div id="lockStep2" style="display:none;">
+      <div style="background:#1e293b;border-radius:12px;padding:14px;margin-bottom:20px;">
+        <i class="fas fa-mobile-alt" style="color:var(--orange);margin-right:6px;"></i>
+        <span style="color:#94a3b8;font-size:13px;">OTP sent to +91 <strong id="adminMobileShow" style="color:#f1f5f9;"></strong></span>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px;" id="adminOtpBoxes"></div>
+      <button class="btn btn-green" onclick="verifyAdminOTP()" id="verifyAdminBtn" style="width:100%;justify-content:center;font-size:14px;padding:12px;">
+        <i class="fas fa-unlock"></i>Verify & Enter Admin Panel
+      </button>
+      <div style="margin-top:12px;"><span onclick="resetAdminLock()" style="font-size:12px;color:#64748b;cursor:pointer;">← Back</span></div>
+    </div>
+
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #1e293b;">
+      <p style="font-size:11px;color:#374151;">🔒 This panel is for authorised personnel only.<br>Unauthorised access is logged and monitored.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ ADMIN APP ═══════════════ -->
+<div id="adminApp">
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div style="padding:20px 16px;border-bottom:1px solid #1e293b;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:36px;height:36px;background:#1B3A7A;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-family:serif;flex-shrink:0;">P</div>
+        <div>
+          <div style="font-weight:800;font-size:14px;color:#f1f5f9;">Public Project</div>
+          <div style="font-size:10px;color:#64748b;" id="adminRoleLabel">Admin Panel</div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;padding:12px 0;overflow-y:auto;">
+      <div class="nav-item active" onclick="showSection('dashboard',this)" id="nav-dashboard"><i class="fas fa-th-large"></i>Dashboard</div>
+      <div class="nav-item" onclick="showSection('proposals',this)" id="nav-proposals"><i class="fas fa-inbox"></i>Proposals <span id="pendingBadge" style="background:#7c3aed;color:#fff;font-size:10px;padding:2px 7px;border-radius:99px;margin-left:auto;"></span></div>
+      <div class="nav-item" onclick="showSection('projects',this)" id="nav-projects"><i class="fas fa-project-diagram"></i>All Projects</div>
+      <div class="nav-item" onclick="showSection('users',this)" id="nav-users"><i class="fas fa-users"></i>Users & KYC</div>
+      <div class="nav-item" onclick="showSection('contacts',this)" id="nav-contacts"><i class="fas fa-envelope"></i>Contact Messages</div>
+      <div class="nav-item" onclick="showSection('audit',this)" id="nav-audit"><i class="fas fa-history"></i>Audit Log</div>
+      <div id="ceoOnlyNav" style="display:none;">
+        <div style="padding:10px 16px 4px;font-size:10px;font-weight:700;color:#374151;letter-spacing:.08em;margin-top:8px;">CEO ONLY</div>
+        <div class="nav-item" onclick="showSection('team',this)" id="nav-team"><i class="fas fa-user-tie"></i>Team & Roles</div>
+        <div class="nav-item" onclick="showSection('settings',this)" id="nav-settings"><i class="fas fa-cog"></i>Settings</div>
+      </div>
+    </div>
+    <div style="padding:12px 16px;border-top:1px solid #1e293b;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div id="adminAvatar" style="width:32px;height:32px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0;"></div>
+        <div><div id="adminName" style="font-size:12px;font-weight:700;color:#f1f5f9;"></div><div id="adminRole" style="font-size:10px;color:#64748b;"></div></div>
+      </div>
+      <button onclick="adminLogout()" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;"><i class="fas fa-sign-out-alt"></i>Sign Out</button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div id="mainContent">
+
+    <!-- DASHBOARD -->
+    <div id="sec-dashboard">
+      <div style="margin-bottom:24px;">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;">OVERVIEW</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:#f1f5f9;">Platform Dashboard</h1>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;" id="dashStats"></div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+        <div class="card" style="padding:20px;">
+          <h3 style="font-weight:700;color:#f1f5f9;margin-bottom:14px;font-size:14px;"><i class="fas fa-clock" style="color:var(--orange);margin-right:6px;"></i>Pending Actions</h3>
+          <div id="dashPending"></div>
+        </div>
+        <div class="card" style="padding:20px;">
+          <h3 style="font-weight:700;color:#f1f5f9;margin-bottom:14px;font-size:14px;"><i class="fas fa-chart-bar" style="color:var(--orange);margin-right:6px;"></i>Project Status</h3>
+          <div id="dashChart"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROPOSALS -->
+    <div id="sec-proposals" style="display:none;">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;">APPROVAL QUEUE</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:#f1f5f9;">Citizen Proposals</h1>
+      </div>
+      <div id="proposalsList"></div>
+    </div>
+
+    <!-- ALL PROJECTS -->
+    <div id="sec-projects" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;">ALL PROJECTS</div>
+          <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:#f1f5f9;">Project Management</h1>
+        </div>
+        <select id="projStatusFilter" class="form-input" style="width:auto;font-size:13px;" onchange="renderProjects()">
+          <option value="">All Statuses</option>
+          <option value="CITIZEN_SUBMITTED">Pending Review</option>
+          <option value="OPEN_FOR_PROPOSAL">Open for Bids</option>
+          <option value="FUNDING_PHASE">Funding Phase</option>
+          <option value="IN_PROGRESS">In Progress</option>
+          <option value="COMPLETED">Completed</option>
+        </select>
+      </div>
+      <div id="projectsList"></div>
+    </div>
+
+    <!-- USERS & KYC -->
+    <div id="sec-users" style="display:none;">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;">USER MANAGEMENT</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:#f1f5f9;">Users & KYC</h1>
+      </div>
+      <div class="tabs">
+        <button class="tab-btn active" onclick="usersTab('all',this)">All Users</button>
+        <button class="tab-btn" onclick="usersTab('pending',this)">Pending KYC</button>
+        <button class="tab-btn" onclick="usersTab('contractor',this)">Contractors</button>
+        <button class="tab-btn" onclick="usersTab('investor',this)">Investors</button>
+      </div>
+      <div id="usersList"></div>
+    </div>
+
+    <!-- CONTACTS -->
+    <div id="sec-contacts" style="display:none;">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;">INBOX</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:#f1f5f9;">Contact Messages</h1>
+      </div>
+      <div id="contactsList"></div>
+    </div>
+
+    <!-- AUDIT LOG -->
+    <div id="sec-audit" style="display:none;">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;">AUDIT TRAIL</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:#f1f5f9;">System Audit Log</h1>
+      </div>
+      <div class="card" style="padding:20px;" id="auditList"></div>
+    </div>
+
+    <!-- TEAM (CEO only) -->
+    <div id="sec-team" style="display:none;">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;">TEAM MANAGEMENT</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:#f1f5f9;">Admin Team & Roles</h1>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <!-- Add new admin -->
+        <div class="card" style="padding:24px;">
+          <h3 style="font-weight:700;color:#f1f5f9;margin-bottom:16px;font-size:15px;"><i class="fas fa-user-plus" style="color:var(--orange);margin-right:8px;"></i>Add Admin / Employee</h3>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div><label class="fl">NAME</label><input id="tm_name" class="form-input" placeholder="Full name"></div>
+            <div><label class="fl">MOBILE</label><input id="tm_mobile" class="form-input" placeholder="10-digit" maxlength="10" type="tel"></div>
+            <div><label class="fl">EMAIL</label><input id="tm_email" class="form-input" placeholder="email@example.com" type="email"></div>
+            <div><label class="fl">ROLE</label>
+              <select id="tm_role" class="form-input">
+                <option value="ADMIN">Admin (Full platform access)</option>
+                <option value="REVIEWER">Reviewer (Proposals only)</option>
+                <option value="SUPPORT">Support (Users & contacts)</option>
+              </select>
+            </div>
+            <div><label class="fl">ASSIGN PASSWORD</label><input id="tm_pass" class="form-input" type="password" placeholder="Set a strong password"></div>
+            <button class="btn btn-orange" onclick="addTeamMember()" style="justify-content:center;"><i class="fas fa-user-plus"></i>Add Team Member</button>
+          </div>
+        </div>
+        <!-- Current team -->
+        <div class="card" style="padding:24px;">
+          <h3 style="font-weight:700;color:#f1f5f9;margin-bottom:16px;font-size:15px;"><i class="fas fa-users" style="color:var(--orange);margin-right:8px;"></i>Current Team</h3>
+          <div id="teamList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS (CEO only) -->
+    <div id="sec-settings" style="display:none;">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;">SETTINGS</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:#f1f5f9;">Platform Settings</h1>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="card" style="padding:24px;">
+          <h3 style="font-weight:700;color:#f1f5f9;margin-bottom:16px;font-size:15px;"><i class="fas fa-lock" style="color:var(--orange);margin-right:8px;"></i>Change Admin Password</h3>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div><label class="fl">CURRENT PASSWORD</label><input id="set_old" class="form-input" type="password" placeholder="Current password"></div>
+            <div><label class="fl">NEW PASSWORD</label><input id="set_new" class="form-input" type="password" placeholder="New password (min 8 chars)"></div>
+            <div><label class="fl">CONFIRM PASSWORD</label><input id="set_confirm" class="form-input" type="password" placeholder="Repeat new password"></div>
+            <button class="btn btn-navy" onclick="changePassword()" style="justify-content:center;"><i class="fas fa-save"></i>Update Password</button>
+          </div>
+        </div>
+        <div class="card" style="padding:24px;">
+          <h3 style="font-weight:700;color:#f1f5f9;margin-bottom:16px;font-size:15px;"><i class="fas fa-bell" style="color:var(--orange);margin-right:8px;"></i>Platform Info</h3>
+          <div style="display:flex;flex-direction:column;gap:12px;font-size:13px;color:#94a3b8;">
+            <div style="display:flex;justify-content:space-between;padding:10px;background:#1e293b;border-radius:8px;"><span>Platform</span><span style="color:#f1f5f9;font-weight:700;">publicproject.in</span></div>
+            <div style="display:flex;justify-content:space-between;padding:10px;background:#1e293b;border-radius:8px;"><span>Firebase Project</span><span style="color:#f1f5f9;font-weight:700;">public-project-026</span></div>
+            <div style="display:flex;justify-content:space-between;padding:10px;background:#1e293b;border-radius:8px;"><span>OTP Provider</span><span style="color:#f1f5f9;font-weight:700;">2Factor.in</span></div>
+            <div style="display:flex;justify-content:space-between;padding:10px;background:#1e293b;border-radius:8px;"><span>Contact</span><span style="color:#f1f5f9;font-weight:700;">+91 8431356927</span></div>
+            <div style="display:flex;justify-content:space-between;padding:10px;background:#1e293b;border-radius:8px;"><span>Email</span><span style="color:#f1f5f9;font-weight:700;"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="77141f181e141204071f120512474037101a161e1b5914181a">[email&#160;protected]</a></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end mainContent -->
+</div><!-- end adminApp -->
+
+<!-- Edit Project Modal -->
+<div id="modalEditProject" class="modal">
+  <div class="modal-box" style="max-width:520px;">
+    <button onclick="closeModal('modalEditProject')" style="position:absolute;top:16px;right:16px;background:none;border:none;color:#64748b;cursor:pointer;font-size:18px;"><i class="fas fa-times"></i></button>
+    <h3 style="font-family:'Playfair Display',serif;color:#f1f5f9;font-size:20px;margin-bottom:20px;">Edit Project</h3>
+    <input type="hidden" id="ep_id">
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+      <div><label class="fl">STATUS</label>
+        <select id="ep_status" class="form-input">
+          <option value="CITIZEN_SUBMITTED">Citizen Submitted</option>
+          <option value="OPEN_FOR_PROPOSAL">Open for Proposals</option>
+          <option value="PROPOSAL_UNDER_REVIEW">Proposal Under Review</option>
+          <option value="FUNDING_PHASE">Funding Phase</option>
+          <option value="IN_PROGRESS">In Progress</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="REJECTED">Rejected</option>
+        </select>
+      </div>
+      <div><label class="fl">PROGRESS % (0-100)</label><input id="ep_pct" class="form-input" type="number" min="0" max="100" placeholder="0"></div>
+      <div><label class="fl">BUDGET (₹)</label><input id="ep_budget" class="form-input" type="number" placeholder="e.g. 2500000"></div>
+      <div><label class="fl">TIMELINE</label><input id="ep_timeline" class="form-input" placeholder="e.g. 8 months"></div>
+      <div><label class="fl">ADMIN NOTE (internal)</label><textarea id="ep_note" class="form-input" rows="2" placeholder="Internal note for this project..."></textarea></div>
+    </div>
+    <button class="btn btn-orange" onclick="saveProjectEdit()" style="width:100%;justify-content:center;font-size:14px;padding:12px;"><i class="fas fa-save"></i>Save Changes</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast">
+  <div style="background:#1e293b;border:1px solid #293548;color:#f1f5f9;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.4);display:flex;align-items:center;gap:10px;max-width:320px;">
+    <i id="toastIcon" class="fas fa-check-circle" style="color:#34d399;flex-shrink:0;"></i>
+    <span id="toastMsg"></span>
+  </div>
+</div>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+// ── ADMIN CREDENTIALS (change these!) ──────────────
+const ADMINS = {
+  // mobile: { password, role, name }
+  '8431356927': { password: 'PublicProject@2026', role: 'SUPER_ADMIN', name: 'Basavaraj (CEO)' },
+  // Add more admins: '9876543210': { password: 'Admin@123', role: 'ADMIN', name: 'Priya Admin' },
+};
+
+const TF_KEY = '16b15d5e-22ff-11ed-9c12-0200cd936042';
+
+// ── STATE ───────────────────────────────────────────
+let ADMIN_USER = null;
+let OTP = null;
+let _adminConfirmationResult = null;
+let _fbReady = false;
+let _projects = [];
+let _users = [];
+let _usersFilter = 'all';
+
+window.addEventListener('firebaseReady', async () => {
+  _fbReady = true;
+  console.log('Firebase ready');
+});
+
+// ── LOCK SCREEN ─────────────────────────────────────
+async function sendAdminOTP() {
+  const mobile = document.getElementById('adminMobile').value.trim();
+  const pass   = document.getElementById('adminPass').value.trim();
+
+  if (mobile.length !== 10) { toast('Enter valid 10-digit number', 'error'); return; }
+  if (!pass) { toast('Enter admin password', 'error'); return; }
+
+  const admin = ADMINS[mobile];
+  if (!admin) { toast('Access denied — number not registered', 'error'); return; }
+  if (admin.password !== pass) { toast('Incorrect password', 'error'); return; }
+
+  const btn = document.getElementById('adminOTPBtn');
+  btn.innerHTML = '<span class="spinner"></span> Sending OTP...';
+  btn.disabled = true;
+
+  try {
+    if(!window._recaptchaVerifier){
+      window._recaptchaVerifier = new window.RecaptchaVerifier(window._auth, 'recaptcha-container-admin', {'size':'invisible','callback':()=>{}});
+    }
+    _adminConfirmationResult = await window.signInWithPhoneNumber(window._auth, '+91'+mobile, window._recaptchaVerifier);
+    toast('OTP sent to +91 ' + mobile);
+    document.getElementById('adminMobileShow').textContent = mobile;
+    document.getElementById('lockStep1').style.display = 'none';
+    document.getElementById('lockStep2').style.display = 'block';
+    buildOTPBoxes('adminOtpBoxes');
+  } catch(e) {
+    if(window._recaptchaVerifier){window._recaptchaVerifier.clear();window._recaptchaVerifier=null;}
+    toast('Failed to send OTP. Try again.', 'error');
+  }
+
+  btn.innerHTML = '<i class="fas fa-mobile-alt"></i>Send OTP to Verify';
+  btn.disabled = false;
+}
+
+async function verifyAdminOTP() {
+  const entered = getOTPVal('adminOtpBoxes');
+  if (entered.length < 6) { toast('Enter all 6 digits', 'error'); return; }
+  const btn = document.getElementById('verifyAdminBtn');
+  btn.innerHTML = '<span class="spinner"></span> Verifying...';
+  btn.disabled = true;
+  try {
+    if(_adminConfirmationResult) await _adminConfirmationResult.confirm(entered);
+  } catch(e) {
+    btn.innerHTML = '<i class="fas fa-unlock-alt"></i>Verify & Enter';
+    btn.disabled = false;
+    toast('Incorrect OTP. Try again.', 'error');
+    return;
+  }
+  btn.innerHTML = '<i class="fas fa-unlock-alt"></i>Verify & Enter';
+  btn.disabled = false;
+  const mobile = document.getElementById('adminMobile').value.trim();
+  const admin  = ADMINS[mobile];
+  ADMIN_USER = { mobile, ...admin };
+
+  // Enter admin panel
+  document.getElementById('lockScreen').style.display = 'none';
+  document.getElementById('adminApp').style.display = 'block';
+
+  // Set admin info in sidebar
+  document.getElementById('adminAvatar').textContent = admin.name.charAt(0);
+  document.getElementById('adminName').textContent = admin.name;
+  document.getElementById('adminRole').textContent = admin.role === 'SUPER_ADMIN' ? 'CEO / Super Admin' : 'Admin';
+  document.getElementById('adminRoleLabel').textContent = admin.role === 'SUPER_ADMIN' ? 'CEO Suite' : 'Admin Panel';
+
+  // Show CEO-only nav items
+  if (admin.role === 'SUPER_ADMIN') {
+    document.getElementById('ceoOnlyNav').style.display = 'block';
+  }
+
+  loadAll();
+}
+
+function resetAdminLock() {
+  document.getElementById('lockStep1').style.display = 'block';
+  document.getElementById('lockStep2').style.display = 'none';
+}
+
+function adminLogout() {
+  ADMIN_USER = null;
+  document.getElementById('lockScreen').style.display = 'flex';
+  document.getElementById('adminApp').style.display = 'none';
+  document.getElementById('adminMobile').value = '';
+  document.getElementById('adminPass').value = '';
+  resetAdminLock();
+}
+
+// ── OTP HELPERS ─────────────────────────────────────
+function buildOTPBoxes(cid) {
+  const c = document.getElementById(cid);
+  c.innerHTML = '';
+  for (let i = 0; i < 6; i++) {
+    const inp = document.createElement('input');
+    inp.style.cssText = 'width:46px;height:54px;border:2px solid #1e293b;border-radius:10px;text-align:center;font-size:20px;font-weight:800;color:#f1f5f9;background:#0f1117;outline:none;font-family:Plus Jakarta Sans,sans-serif;';
+    inp.maxLength = 1; inp.inputMode = 'numeric';
+    inp.addEventListener('input', function() { if(this.value && i<5) c.children[i+1].focus(); });
+    inp.addEventListener('keydown', function(e) { if(e.key==='Backspace'&&!this.value&&i>0) c.children[i-1].focus(); });
+    inp.addEventListener('focus', function() { this.style.borderColor='#3b82f6'; });
+    inp.addEventListener('blur', function() { this.style.borderColor='#1e293b'; });
+    c.appendChild(inp);
+  }
+  setTimeout(() => c.children[0]?.focus(), 100);
+}
+function getOTPVal(cid) { return Array.from(document.getElementById(cid).children).map(i=>i.value).join(''); }
+
+// ── LOAD DATA ───────────────────────────────────────
+async function loadAll() {
+  if (_fbReady && window.DB) {
+    _projects = await window.DB.getProjects();
+    _users    = await window.DB.getUsers();
+  } else {
+    _projects = JSON.parse(localStorage.getItem('pp_proj') || '[]');
+    _users    = JSON.parse(localStorage.getItem('pp_users') || '[]');
+  }
+  renderDashboard();
+  renderProposals();
+  renderProjects();
+  renderUsers('all');
+  renderContacts();
+  renderAudit();
+  renderTeam();
+
+  // Update pending badge
+  const pending = _projects.filter(p => p.status === 'CITIZEN_SUBMITTED').length;
+  document.getElementById('pendingBadge').textContent = pending || '';
+}
+
+// ── NAVIGATION ──────────────────────────────────────
+function showSection(id, el) {
+  document.querySelectorAll('[id^="sec-"]').forEach(s => s.style.display = 'none');
+  document.getElementById('sec-' + id).style.display = 'block';
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+// ── STATUS HELPERS ───────────────────────────────────
+const SL = {CITIZEN_SUBMITTED:'Submitted',OPEN_FOR_PROPOSAL:'Open for Bids',PROPOSAL_UNDER_REVIEW:'Under Review',FUNDING_PHASE:'Funding Phase',IN_PROGRESS:'In Progress',COMPLETED:'Completed',REJECTED:'Rejected'};
+const SC = {CITIZEN_SUBMITTED:'yellow',OPEN_FOR_PROPOSAL:'blue',PROPOSAL_UNDER_REVIEW:'purple',FUNDING_PHASE:'yellow',IN_PROGRESS:'green',COMPLETED:'green',REJECTED:'red'};
+function badge(status) { return `<span class="badge badge-${SC[status]||'blue'}">${SL[status]||status}</span>`; }
+function money(n) { if(!n)return'—'; if(n>=10000000)return'₹'+(n/10000000).toFixed(1)+'Cr'; if(n>=100000)return'₹'+(n/100000).toFixed(1)+'L'; return'₹'+n.toLocaleString('en-IN'); }
+function fmtDate(t) {
+  if(!t) return '—';
+  if(t.seconds) return new Date(t.seconds*1000).toLocaleString('en-IN');
+  return new Date(t).toLocaleString('en-IN');
+}
+
+// ── DASHBOARD ───────────────────────────────────────
+function renderDashboard() {
+  const total = _projects.length;
+  const pending = _projects.filter(p=>p.status==='CITIZEN_SUBMITTED').length;
+  const active = _projects.filter(p=>p.status==='IN_PROGRESS').length;
+  const done = _projects.filter(p=>p.status==='COMPLETED').length;
+  const budget = _projects.reduce((s,p)=>s+(p.budget||0),0);
+
+  document.getElementById('dashStats').innerHTML = [
+    {label:'Total Projects',value:total,icon:'fa-project-diagram',color:'#60a5fa'},
+    {label:'Pending Review',value:pending,icon:'fa-clock',color:'#fbbf24'},
+    {label:'In Progress',value:active,icon:'fa-hard-hat',color:'#34d399'},
+    {label:'Platform Budget',value:money(budget),icon:'fa-rupee-sign',color:'#f97316'},
+  ].map(s=>`<div class="stat-card"><i class="fas ${s.icon}" style="color:${s.color};font-size:20px;display:block;margin-bottom:8px;"></i><div class="stat-num" style="color:${s.color};">${s.value}</div><div class="stat-label">${s.label}</div></div>`).join('');
+
+  const pendingItems = _projects.filter(p=>p.status==='CITIZEN_SUBMITTED');
+  document.getElementById('dashPending').innerHTML = pendingItems.length
+    ? pendingItems.slice(0,5).map(p=>`
+      <div style="padding:10px;background:#1e293b;border-radius:8px;margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:600;color:#f1f5f9;margin-bottom:4px;">${p.title}</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span style="font-size:11px;color:#64748b;">${p.district||'—'} · ${p.category}</span>
+          <button class="btn btn-green btn-sm" onclick="quickApprove('${p.id}','OPEN_FOR_PROPOSAL')" style="margin-left:auto;padding:4px 10px;font-size:11px;"><i class="fas fa-check"></i>Approve</button>
+        </div>
+      </div>`).join('')
+    : '<div style="color:#374151;font-size:13px;text-align:center;padding:20px;">No pending proposals ✓</div>';
+
+  // Status chart
+  const statuses = ['CITIZEN_SUBMITTED','OPEN_FOR_PROPOSAL','FUNDING_PHASE','IN_PROGRESS','COMPLETED'];
+  const colors = {'CITIZEN_SUBMITTED':'#fbbf24','OPEN_FOR_PROPOSAL':'#60a5fa','FUNDING_PHASE':'#f97316','IN_PROGRESS':'#34d399','COMPLETED':'#a78bfa'};
+  document.getElementById('dashChart').innerHTML = statuses.map(s=>{
+    const count = _projects.filter(p=>p.status===s).length;
+    const pct = total ? Math.round(count/total*100) : 0;
+    return `<div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-bottom:3px;"><span>${SL[s]}</span><span style="color:${colors[s]};font-weight:700;">${count}</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${colors[s]};"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ── PROPOSALS ──────────────────────────────────────
+function renderProposals() {
+  const pending = _projects.filter(p=>p.status==='CITIZEN_SUBMITTED');
+  document.getElementById('proposalsList').innerHTML = pending.length
+    ? pending.map(p=>`
+      <div class="card" style="padding:20px;margin-bottom:12px;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+          <div>
+            <div style="font-weight:700;color:#f1f5f9;font-size:15px;">${p.title}</div>
+            <div style="font-size:12px;color:#64748b;margin-top:2px;">${p.category} · ${p.district||'—'} · By <strong style="color:#94a3b8;">${p.submittedBy}</strong> · ${p.createdAt||'—'}</div>
+          </div>
+          ${badge(p.status)}
+        </div>
+        <p style="font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:14px;">${(p.description||'').substring(0,250)}${(p.description||'').length>250?'...':''}</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <button class="btn btn-green btn-sm" onclick="approveProposal('${p.id}','OPEN_FOR_PROPOSAL')"><i class="fas fa-check"></i>Approve for Bids</button>
+          <button class="btn btn-sm" onclick="approveProposal('${p.id}','FUNDING_PHASE')" style="background:#1e3a5f;color:#60a5fa;"><i class="fas fa-coins"></i>Move to Funding</button>
+          <button class="btn btn-sm" onclick="openEditProject('${p.id}')" style="background:#1e293b;color:#94a3b8;"><i class="fas fa-edit"></i>Edit</button>
+          <button class="btn btn-red btn-sm" onclick="approveProposal('${p.id}','REJECTED')"><i class="fas fa-times"></i>Reject</button>
+        </div>
+      </div>`).join('')
+    : '<div style="text-align:center;padding:48px;color:#374151;"><i class="fas fa-check-circle" style="font-size:36px;color:#34d399;display:block;margin-bottom:12px;"></i>All caught up! No pending proposals.</div>';
+}
+
+// ── ALL PROJECTS ─────────────────────────────────────
+function renderProjects() {
+  const filter = document.getElementById('projStatusFilter')?.value || '';
+  const filtered = filter ? _projects.filter(p=>p.status===filter) : _projects;
+  document.getElementById('projectsList').innerHTML = filtered.length
+    ? filtered.map(p=>`
+      <div class="card" style="padding:16px;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+          <div style="flex:1;">
+            <div style="font-weight:700;color:#f1f5f9;font-size:14px;">${p.title}</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px;">${p.district||'—'} · ${p.category} · ${money(p.budget)}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            ${p.status==='IN_PROGRESS'?`<input type="range" min="0" max="100" value="${p.pct||0}" style="width:80px;accent-color:#3b82f6;" oninput="this.nextElementSibling.textContent=this.value+'%';updatePct('${p.id}',this.value)" title="Progress"><span style="font-size:11px;color:#64748b;min-width:32px;">${p.pct||0}%</span>`:''}
+            ${badge(p.status)}
+            <button class="btn btn-ghost btn-sm" onclick="openEditProject('${p.id}')"><i class="fas fa-edit"></i>Edit</button>
+          </div>
+        </div>
+        ${p.pct>0?`<div class="progress-bar"><div class="progress-fill" style="width:${p.pct}%;"></div></div>`:''}
+      </div>`).join('')
+    : '<div style="text-align:center;padding:40px;color:#374151;">No projects found.</div>';
+}
+
+// ── USERS ────────────────────────────────────────────
+function usersTab(filter, btn) {
+  _usersFilter = filter;
+  document.querySelectorAll('#sec-users .tab-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderUsers(filter);
+}
+
+function renderUsers(filter) {
+  let users = _users;
+  if(filter === 'pending') users = _users.filter(u=>u.kycStatus==='pending');
+  else if(filter === 'contractor') users = _users.filter(u=>u.role==='CONTRACTOR');
+  else if(filter === 'investor') users = _users.filter(u=>u.role==='INVESTOR');
+
+  document.getElementById('usersList').innerHTML = users.length
+    ? users.map(u=>`
+      <div class="card" style="padding:16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:38px;height:38px;border-radius:50%;background:#1e293b;display:flex;align-items:center;justify-content:center;color:#f97316;font-weight:800;font-size:15px;flex-shrink:0;">${(u.name||u.mobile||'?').charAt(0).toUpperCase()}</div>
+          <div>
+            <div style="font-weight:700;color:#f1f5f9;font-size:13px;">${u.name||u.mobile}</div>
+            <div style="font-size:11px;color:#64748b;">+91${u.mobile} · ${u.email||'—'} · ${u.role}</div>
+            ${(u.role==='CONTRACTOR'||u.role==='INVESTOR')&&u.password?`<div style="font-size:10px;background:#f0fdf4;color:#065f46;padding:2px 8px;border-radius:6px;display:inline-block;margin-top:2px;"><i class="fas fa-key" style="margin-right:3px;"></i>Pass: ${u.password}</div>`:''}
+            <div style="font-size:11px;color:#64748b;margin-top:1px;">Pincode: ${u.pincode||'—'} · Joined: ${u.createdAt?new Date(u.createdAt).toLocaleDateString('en-IN'):'—'}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span class="badge ${u.kycStatus==='verified'?'badge-green':u.kycStatus==='rejected'?'badge-red':'badge-yellow'}">${u.kycStatus||'pending'}</span>
+          ${u.kycStatus==='pending'?`
+            <button class="btn btn-green btn-sm" onclick="approveKYC('${u.id}')"><i class="fas fa-check"></i>Approve KYC</button>
+            <button class="btn btn-red btn-sm" onclick="rejectKYC('${u.id}')">Reject</button>
+          `:''}
+          ${(u.role==='CONTRACTOR'||u.role==='INVESTOR')?`<button class="btn btn-ghost btn-sm" onclick="resetUserPassword('${u.id}')"><i class="fas fa-key"></i>Reset Pass</button>`:''}
+          <button class="btn btn-ghost btn-sm" onclick="changeUserRole('${u.id}','${u.role}')"><i class="fas fa-user-edit"></i>Role</button>
+        </div>
+      </div>`).join('')
+    : '<div style="text-align:center;padding:40px;color:#374151;">No users found.</div>';
+}
+
+// ── CONTACTS ─────────────────────────────────────────
+function renderContacts() {
+  const contacts = JSON.parse(localStorage.getItem('pp_contacts')||'[]');
+  document.getElementById('contactsList').innerHTML = contacts.length
+    ? contacts.map((c,i)=>`
+      <div class="card" style="padding:18px;margin-bottom:12px;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+          <div>
+            <div style="font-weight:700;color:#f1f5f9;font-size:14px;">${c.name} <span style="color:#64748b;font-weight:400;font-size:12px;">· ${c.role}</span></div>
+            <div style="font-size:12px;color:#64748b;margin-top:2px;">+91${c.mobile}${c.email?' · '+c.email:''} · ${c.createdAt?new Date(c.createdAt).toLocaleDateString('en-IN'):'—'}</div>
+          </div>
+          <span class="badge badge-blue">${c.subject}</span>
+        </div>
+        <p style="font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:12px;">${c.message}</p>
+        <div style="display:flex;gap:8px;">
+          <a href="tel:+91${c.mobile}" class="btn btn-green btn-sm"><i class="fas fa-phone"></i>Call</a>
+          <a href="mailto:${c.email}" class="btn btn-ghost btn-sm"><i class="fas fa-envelope"></i>Email</a>
+          <button class="btn btn-red btn-sm" onclick="deleteContact(${i})"><i class="fas fa-trash"></i>Delete</button>
+        </div>
+      </div>`).join('')
+    : '<div style="text-align:center;padding:48px;color:#374151;"><i class="fas fa-inbox" style="font-size:36px;display:block;margin-bottom:12px;"></i>No contact messages yet.</div>';
+}
+
+// ── AUDIT ─────────────────────────────────────────────
+async function renderAudit() {
+  let logs = [];
+  if (_fbReady && window.DB) { logs = await window.DB.getLogs(); }
+  if (!logs.length) { logs = JSON.parse(localStorage.getItem('pp_log')||'[]'); }
+  document.getElementById('auditList').innerHTML = logs.length
+    ? logs.slice(0,50).map(l=>`
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #1e293b;">
+        <span class="badge badge-blue" style="white-space:nowrap;flex-shrink:0;">${l.action}</span>
+        <div style="flex:1;font-size:12px;color:#94a3b8;">${l.detail}</div>
+        <div style="font-size:11px;color:#374151;white-space:nowrap;">${fmtDate(l.time||l.ts)}</div>
+      </div>`).join('')
+    : '<div style="color:#374151;text-align:center;padding:20px;">No audit events yet.</div>';
+}
+
+// ── TEAM ──────────────────────────────────────────────
+function renderTeam() {
+  const team = JSON.parse(localStorage.getItem('pp_team')||'[]');
+  // Add CEO as permanent
+  const allTeam = [{ name: 'Basavaraj (CEO)', mobile: '8431356927', role: 'SUPER_ADMIN', permanent: true }, ...team];
+  document.getElementById('teamList').innerHTML = allTeam.map(m=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:#1e293b;border-radius:8px;margin-bottom:8px;">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#f1f5f9;">${m.name}</div>
+        <div style="font-size:11px;color:#64748b;">+91${m.mobile} · ${m.role}</div>
+      </div>
+      ${m.permanent ? '<span class="badge badge-purple">Owner</span>' : `<button class="btn btn-red btn-sm" onclick="removeTeamMember('${m.mobile}')"><i class="fas fa-trash"></i></button>`}
+    </div>`).join('');
+}
+
+function addTeamMember() {
+  const name   = document.getElementById('tm_name').value.trim();
+  const mobile = document.getElementById('tm_mobile').value.trim();
+  const email  = document.getElementById('tm_email').value.trim();
+  const role   = document.getElementById('tm_role').value;
+  const pass   = document.getElementById('tm_pass').value.trim();
+  if (!name||mobile.length!==10||!pass) { toast('Fill all required fields','error'); return; }
+
+  // Add to ADMINS object (runtime only — tell user to add permanently to code)
+  ADMINS[mobile] = { password: pass, role, name };
+
+  // Save to localStorage
+  const team = JSON.parse(localStorage.getItem('pp_team')||'[]');
+  team.push({ name, mobile, email, role, createdAt: new Date().toISOString() });
+  localStorage.setItem('pp_team', JSON.stringify(team));
+
+  ['tm_name','tm_mobile','tm_email','tm_pass'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  renderTeam();
+  toast(`${name} added as ${role}`);
+}
+
+function removeTeamMember(mobile) {
+  const team = JSON.parse(localStorage.getItem('pp_team')||'[]');
+  const updated = team.filter(m=>m.mobile!==mobile);
+  localStorage.setItem('pp_team', JSON.stringify(updated));
+  delete ADMINS[mobile];
+  renderTeam();
+  toast('Team member removed');
+}
+
+// ── ACTIONS ──────────────────────────────────────────
+async function approveProposal(id, status) {
+  const idx = _projects.findIndex(p=>p.id===id);
+  if (idx > -1) {
+    _projects[idx].status = status;
+    if (_fbReady && window.DB) await window.DB.saveProject(_projects[idx]);
+    else { localStorage.setItem('pp_proj', JSON.stringify(_projects)); }
+    if (_fbReady && window.DB) window.DB.addLog({ action:'ADMIN_APPROVED', detail:`"${_projects[idx].title}" → ${status}`, user: ADMIN_USER.name });
+    toast(status==='REJECTED'?'Proposal rejected':'Proposal approved!');
+    renderDashboard(); renderProposals(); renderProjects();
+    document.getElementById('pendingBadge').textContent = _projects.filter(p=>p.status==='CITIZEN_SUBMITTED').length || '';
+  }
+}
+
+function quickApprove(id, status) { approveProposal(id, status); }
+
+async function updatePct(id, pct) {
+  const idx = _projects.findIndex(p=>p.id===id);
+  if (idx > -1) {
+    _projects[idx].pct = parseInt(pct);
+    if (parseInt(pct)===100) _projects[idx].status='COMPLETED';
+    if (_fbReady && window.DB) await window.DB.saveProject(_projects[idx]);
+    else localStorage.setItem('pp_proj', JSON.stringify(_projects));
+  }
+}
+
+async function approveKYC(uid) {
+  const idx = _users.findIndex(u=>u.id===uid);
+  if (idx > -1) {
+    _users[idx].kycStatus = 'verified';
+    _users[idx].isApproved = true;
+    // Set default password if not already set (first time approval)
+    if (!_users[idx].password) {
+      const defaultPass = 'PP@' + _users[idx].mobile.slice(-4) + '2026';
+      _users[idx].password = defaultPass;
+      toast(`KYC approved! Default password set: ${defaultPass} — share with user.`, 'info');
+    } else {
+      toast('KYC approved!');
+    }
+    if (_fbReady && window.DB) await window.DB.saveUser(_users[idx]);
+    else localStorage.setItem('pp_users', JSON.stringify(_users));
+    renderUsers(_usersFilter);
+  }
+}
+
+async function rejectKYC(uid) {
+  const idx = _users.findIndex(u=>u.id===uid);
+  if (idx > -1) {
+    _users[idx].kycStatus = 'rejected';
+    if (_fbReady && window.DB) await window.DB.saveUser(_users[idx]);
+    else localStorage.setItem('pp_users', JSON.stringify(_users));
+    toast('KYC rejected','error'); renderUsers(_usersFilter);
+  }
+}
+
+function resetUserPassword(uid) {
+  const idx = _users.findIndex(u=>u.id===uid);
+  if (idx < 0) return;
+  const newPass = 'PP@' + _users[idx].mobile.slice(-4) + '2026';
+  _users[idx].password = newPass;
+  if (_fbReady && window.DB) window.DB.saveUser(_users[idx]);
+  else localStorage.setItem('pp_users', JSON.stringify(_users));
+  toast(`Password reset to: ${newPass} — share with ${_users[idx].name}`, 'info');
+}
+
+function changeUserRole(uid, currentRole) {
+  const roles = ['CITIZEN','CONTRACTOR','INVESTOR'];
+  const next = roles[(roles.indexOf(currentRole)+1) % roles.length];
+  const idx = _users.findIndex(u=>u.id===uid);
+  if (idx > -1) {
+    _users[idx].role = next;
+    if (_fbReady && window.DB) window.DB.saveUser(_users[idx]);
+    else localStorage.setItem('pp_users', JSON.stringify(_users));
+    toast(`Role changed to ${next}`);
+    renderUsers(_usersFilter);
+  }
+}
+
+function deleteContact(i) {
+  const contacts = JSON.parse(localStorage.getItem('pp_contacts')||'[]');
+  contacts.splice(i,1);
+  localStorage.setItem('pp_contacts', JSON.stringify(contacts));
+  renderContacts();
+  toast('Message deleted');
+}
+
+// ── EDIT PROJECT MODAL ────────────────────────────────
+function openEditProject(id) {
+  const p = _projects.find(x=>x.id===id);
+  if (!p) return;
+  document.getElementById('ep_id').value = id;
+  document.getElementById('ep_status').value = p.status;
+  document.getElementById('ep_pct').value = p.pct||0;
+  document.getElementById('ep_budget').value = p.budget||'';
+  document.getElementById('ep_timeline').value = p.timeline||'';
+  document.getElementById('ep_note').value = p.adminNote||'';
+  openModal('modalEditProject');
+}
+
+async function saveProjectEdit() {
+  const id = document.getElementById('ep_id').value;
+  const idx = _projects.findIndex(p=>p.id===id);
+  if (idx > -1) {
+    _projects[idx].status   = document.getElementById('ep_status').value;
+    _projects[idx].pct      = parseInt(document.getElementById('ep_pct').value)||0;
+    _projects[idx].budget   = parseInt(document.getElementById('ep_budget').value)||_projects[idx].budget;
+    _projects[idx].timeline = document.getElementById('ep_timeline').value||_projects[idx].timeline;
+    _projects[idx].adminNote= document.getElementById('ep_note').value;
+    if (_fbReady && window.DB) await window.DB.saveProject(_projects[idx]);
+    else localStorage.setItem('pp_proj', JSON.stringify(_projects));
+    toast('Project updated!');
+    closeModal('modalEditProject');
+    renderProjects(); renderProposals(); renderDashboard();
+  }
+}
+
+// ── PASSWORD CHANGE ───────────────────────────────────
+function changePassword() {
+  const old     = document.getElementById('set_old').value;
+  const newPass = document.getElementById('set_new').value;
+  const confirm = document.getElementById('set_confirm').value;
+  if (!ADMIN_USER) return;
+  if (ADMINS[ADMIN_USER.mobile].password !== old) { toast('Current password incorrect','error'); return; }
+  if (newPass.length < 8) { toast('Password must be at least 8 characters','error'); return; }
+  if (newPass !== confirm) { toast('Passwords do not match','error'); return; }
+  ADMINS[ADMIN_USER.mobile].password = newPass;
+  toast('Password updated! Note: Update in code to make permanent.');
+  ['set_old','set_new','set_confirm'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+}
+
+// ── MODAL HELPERS ─────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.addEventListener('click', e => {
+  document.querySelectorAll('.modal.open').forEach(m => { if(e.target===m) m.classList.remove('open'); });
+});
+
+// ── TOAST ─────────────────────────────────────────────
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  const icon = document.getElementById('toastIcon');
+  icon.className = 'fas ' + (type==='error'?'fa-exclamation-circle':type==='info'?'fa-info-circle':'fa-
