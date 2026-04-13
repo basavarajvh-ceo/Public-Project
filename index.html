@@ -482,7 +482,7 @@ label.field-label{display:block;font-size:11px;font-weight:700;color:#64748b;let
           <div style="display:flex;gap:8px;margin-bottom:20px;">
             <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:11px 14px;font-weight:700;color:#64748b;font-size:14px;white-space:nowrap;flex-shrink:0;">+91</div>
             <input id="loginMobile" class="form-input" placeholder="10-digit number" maxlength="10" type="tel" onkeypress="if(event.key==='Enter')sendLoginOTP()" style="width:100%;">
-          </div>
+          </div><div id="recaptcha-container"></div>
           <button class="btn btn-navy" onclick="sendLoginOTP()" id="loginOTPBtn" style="width:100%;justify-content:center;font-size:14px;padding:12px;">
             <i class="fas fa-mobile-alt"></i>Send OTP
           </button>
@@ -1244,11 +1244,19 @@ async function sendLoginOTP(){
 async function verifyLoginOTP(){
   const entered=getOTP('loginOtpBoxes');
   if(entered.length<6){toast('Enter all 6 digits','error');return;}
-  if(entered!==OTP){toast('Incorrect OTP','error');return;}
   const mobile=document.getElementById('loginMobile').value.trim();
   const btn=document.getElementById('verifyLoginBtn');
   btn.innerHTML='<span class="spinner"></span> Signing in...';
   btn.disabled=true;
+  try{
+    if(!_cr) throw new Error('Session expired. Resend OTP.');
+    await _cr.confirm(entered);
+  }catch(e){
+    btn.innerHTML='<i class="fas fa-check-circle"></i>Verify & Sign In';
+    btn.disabled=false;
+    toast(e.code==='auth/invalid-verification-code'?'Incorrect OTP. Try again.':'Verification failed.','error');
+    return;
+  }
   // Look up user from Firestore/localStorage — role comes from saved data
   let u=null;
   if(_firebaseReady && window.DB){ u=await window.DB.getUser(mobile); }
@@ -1383,12 +1391,25 @@ async function handleSignup(){
   document.getElementById('signupStep2').style.display='block';
   makeOTPBoxes('signupOtpBoxes');
 }
-
-function verifySignupOTP(){
+async function verifySignupOTP(){
   const entered=getOTP('signupOtpBoxes');
   if(entered.length<6){toast('Enter all 6 digits','error');return;}
-  if(entered!==OTP){toast('Incorrect OTP','error');return;}
-  completeRegistration(true); // All users get full access during launch
+  const btn=document.getElementById('verifySignupBtn');
+  btn.innerHTML='<span class="spinner"></span> Verifying...';
+  btn.disabled=true;
+  try{
+    if(!_cr) throw new Error('Session expired. Resend OTP.');
+    await _cr.confirm(entered);
+  }catch(e){
+    btn.innerHTML='<i class="fas fa-check-circle"></i>Verify & Create Account';
+    btn.disabled=false;
+    toast(e.code==='auth/invalid-verification-code'?'Incorrect OTP.':'Verification failed.','error');
+    return;
+  }
+  btn.innerHTML='<i class="fas fa-check-circle"></i>Verify & Create Account';
+  btn.disabled=false;
+  completeRegistration(true);
+}
 }
 
 function completeRegistration(isPremium){
