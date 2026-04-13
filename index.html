@@ -1168,11 +1168,19 @@ function openDashboard(){
 }
 
 // ── AUTH ─────────────────────────────────────────
+let _rv = null, _cr = null;
 async function sendOTP(mobile){
-  const otp = String(Math.floor(100000+Math.random()*900000));
-  OTP = otp;
   try{
-    const url=`https://2factor.in/API/V1/${CFG.TF_KEY}/SMS/${mobile}/${otp}/AUTOGEN2`;
+    if(_rv){try{_rv.clear();}catch(e){}}_rv=null;
+    _rv = new window.RV(window._auth,'recaptcha-container',{size:'invisible',callback:()=>{}});
+    _cr = await window.SWP(window._auth, '+91'+mobile, _rv);
+    toast('OTP sent to +91'+mobile); return true;
+  }catch(e){
+    if(_rv){try{_rv.clear();}catch(x){}}_rv=null;
+    const msg=e.code==='auth/too-many-requests'?'Too many attempts. Try later.':'Could not send OTP. Try again.';
+    toast(msg,'error'); return false;
+  }
+}
     const r=await fetch(url);
     const d=await r.json();
     if(d.Status==='Success'){ toast('OTP sent to +91'+mobile); return true; }
