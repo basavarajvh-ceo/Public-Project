@@ -10,7 +10,7 @@
 // ── FIREBASE INIT ────────────────────────────────
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, orderBy, limit, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
+import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 const firebaseConfig = {
   apiKey: "AIzaSyC5PjXMJR9M9Zk5FPSeybkH8UEmrFNkk7Q",
   authDomain: "public-project-026.firebaseapp.com",
@@ -22,6 +22,10 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
+const auth = getAuth(app);
+window._auth = auth;
+window.RV    = RecaptchaVerifier;
+window.SWP   = signInWithPhoneNumber;
 
 // Expose DB functions to global scope for use in main script
 window.DB = {
@@ -1031,13 +1035,10 @@ label.field-label{display:block;font-size:11px;font-weight:700;color:#64748b;let
 <!-- ═══════════════ JAVASCRIPT ═══════════════ -->
 <script>
 // ── CONFIG ──────────────────────────────────────
-const CFG = {
-  TF_KEY:   '16b15d5e-22ff-11ed-9c12-0200cd936042',
-};
+const CFG = {};
 
 // ── STATE ────────────────────────────────────────
 let USER = null;
-let OTP  = null;
 let SUData = null;
 let suRole = 'CITIZEN';
 let suPlan = 'free';
@@ -1168,18 +1169,19 @@ function openDashboard(){
 }
 
 // ── AUTH ─────────────────────────────────────────
+let _rv = null, _cr = null;
 async function sendOTP(mobile){
-  const otp = String(Math.floor(100000+Math.random()*900000));
-  OTP = otp;
   try{
-    const url=`https://2factor.in/API/V1/${CFG.TF_KEY}/SMS/${mobile}/${otp}/AUTOGEN2`;
-    const r=await fetch(url);
-    const d=await r.json();
-    if(d.Status==='Success'){ toast('OTP sent to +91'+mobile); return true; }
-  }catch(e){}
-  // SMS failed - show error
-  toast('SMS service unavailable. Check your connection.','error');
-  return true;
+    if(!window.RV){ toast('Firebase not ready. Refresh page.','error'); return false; }
+    if(_rv){try{_rv.clear();}catch(e){}}_rv=null;
+    _rv = new window.RV(window._auth,'recaptcha-container',{size:'invisible',callback:()=>{}});
+    _cr = await window.SWP(window._auth, '+91'+mobile, _rv);
+    toast('OTP sent to +91'+mobile); return true;
+  }catch(e){
+    if(_rv){try{_rv.clear();}catch(x){}}_rv=null;
+    const msg=e.code==='auth/too-many-requests'?'Too many attempts. Try later.':'Could not send OTP. Try again.';
+    toast(msg,'error'); return false;
+  }
 }
 
 function makeOTPBoxes(containerId){
