@@ -1,0 +1,2491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="manifest" href="/manifest.json">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Public Project — Rural Infrastructure Platform</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+<script type="module">
+// ── FIREBASE INIT ────────────────────────────────
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, orderBy, limit, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC5PjXMJR9M9Zk5FPSeybkH8UEmrFNkk7Q",
+  authDomain: "public-project-026.firebaseapp.com",
+  projectId: "public-project-026",
+  storageBucket: "public-project-026.firebasestorage.app",
+  messagingSenderId: "512588357820",
+  appId: "1:512588357820:web:aae6c22ebfa7eb4605f0b9"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+
+// Expose DB functions to global scope for use in main script
+window.DB = {
+  // ── PROJECTS ──────────────────────────────────
+  async getProjects(){
+    try{
+      const snap=await getDocs(collection(db,'projects'));
+      if(snap.empty) return null;
+      return snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){console.warn('Firestore:projects read failed',e);return null;}
+  },
+  async saveProject(p){
+    try{
+      const {id,...data}=p;
+      await setDoc(doc(db,'projects',id),{...data,updatedAt:serverTimestamp()});
+      return true;
+    }catch(e){return false;}
+  },
+  async addProject(p){
+    try{
+      const ref=doc(collection(db,'projects'));
+      await setDoc(ref,{...p,createdAt:new Date().toISOString(),updatedAt:serverTimestamp()});
+      return ref.id;
+    }catch(e){return null;}
+  },
+
+  // ── CITIZENS ──────────────────────────────────
+  async getCitizens(){
+    try{
+      const snap=await getDocs(query(collection(db,'users'),where('role','==','CITIZEN')));
+      return snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){return[];}
+  },
+
+  // ── CONTRACTORS ───────────────────────────────
+  async getContractors(){
+    try{
+      const snap=await getDocs(query(collection(db,'users'),where('role','==','CONTRACTOR')));
+      return snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){return[];}
+  },
+
+  // ── INVESTORS ─────────────────────────────────
+  async getInvestors(){
+    try{
+      const snap=await getDocs(query(collection(db,'users'),where('role','==','INVESTOR')));
+      return snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){return[];}
+  },
+
+  // ── USERS (all) ───────────────────────────────
+  async getUser(mobile){
+    try{
+      const snap=await getDocs(query(collection(db,'users')));
+      const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+      return all.find(u=>u.mobile===mobile)||null;
+    }catch(e){return null;}
+  },
+  async saveUser(u){
+    try{
+      await setDoc(doc(db,'users',u.id),{...u,updatedAt:serverTimestamp()});
+      return true;
+    }catch(e){return false;}
+  },
+  async getAllUsers(){
+    try{
+      const snap=await getDocs(collection(db,'users'));
+      return snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){return[];}
+  },
+
+  // ── BIDS (contractor proposals) ───────────────
+  async addBid(b){
+    try{
+      await addDoc(collection(db,'bids'),{...b,time:serverTimestamp()});
+      return true;
+    }catch(e){return false;}
+  },
+  async getBids(){
+    try{
+      const snap=await getDocs(collection(db,'bids'));
+      return snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){return[];}
+  },
+
+  // ── INTERESTS (investor expressions) ──────────
+  async addInterest(i){
+    try{
+      await addDoc(collection(db,'interests'),{...i,time:serverTimestamp()});
+      return true;
+    }catch(e){return false;}
+  },
+  async getInterests(){
+    try{
+      const snap=await getDocs(collection(db,'interests'));
+      return snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){return[];}
+  },
+
+  // ── CONTACTS (contact form) ───────────────────
+  async addContact(c){
+    try{
+      await addDoc(collection(db,'contacts'),{...c,time:serverTimestamp()});
+      return true;
+    }catch(e){return false;}
+  },
+  async getContacts(){
+    try{
+      const snap=await getDocs(collection(db,'contacts'));
+      return snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){return[];}
+  },
+
+  // ── ADS (read-only for public) ────────────────
+  async getAds(){
+    try{
+      const snap=await getDocs(collection(db,'ads'));
+      return snap.docs.map(d=>({id:d.id,...d.data()})).filter(a=>!a.deleted && a.active);
+    }catch(e){return[];}
+  },
+
+  // ── AUDIT LOG ─────────────────────────────────
+  async addLog(entry){
+    try{await addDoc(collection(db,'audit'),{...entry,time:serverTimestamp()});}catch(e){}
+  },
+  async getLogs(){
+    try{
+      const snap=await getDocs(query(collection(db,'audit'),orderBy('time','desc'),limit(100)));
+      return snap.docs.map(d=>d.data());
+    }catch(e){return[];}
+  },
+
+  // ── SEED ──────────────────────────────────────
+  async seedIfEmpty(seedData){
+    try{
+      const snap=await getDocs(collection(db,'projects'));
+      if(!snap.empty) return;
+      for(const p of seedData){
+        const {id,...data}=p;
+        await setDoc(doc(db,'projects',id),{...data,seeded:true,createdAt:p.createdAt||new Date().toISOString()});
+      }
+      console.log('Seeded',seedData.length,'projects');
+    }catch(e){console.warn('Seed failed',e);}
+  },
+  async seedAdsIfEmpty(seedAds){
+    try{
+      const snap=await getDocs(collection(db,'ads'));
+      if(!snap.empty) return;
+      for(const a of seedAds){
+        const ref=doc(collection(db,'ads'));
+        await setDoc(ref,{...a,seeded:true,createdAt:new Date().toISOString()});
+      }
+      console.log('Seeded',seedAds.length,'ads');
+    }catch(e){console.warn('Seed ads failed',e);}
+  }
+};
+
+window.dispatchEvent(new Event('firebaseReady'));
+console.log('Firebase initialized — Firestore connected');
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:#F8F7F4;color:#1e293b;}
+:root{--navy:#1B3A7A;--navydark:#102550;--orange:#F97316;--cream:#F8F7F4;}
+
+/* Pages */
+.page{display:none;}
+.page.active{display:block;animation:fadeUp .2s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+/* Modals */
+.modal{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px;}
+.modal.open{display:flex;animation:fadeUp .18s ease;}
+.modal-box{background:#fff;border-radius:20px;width:100%;max-height:90vh;overflow-y:auto;position:relative;box-shadow:0 24px 60px rgba(0,0,0,.2);}
+
+/* Cards */
+.card{background:#fff;border:1px solid #e8e6e0;border-radius:16px;}
+.card-sm{background:#fff;border:1px solid #e8e6e0;border-radius:12px;}
+
+/* Buttons */
+.btn{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;border:none;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px;}
+.btn-navy{background:var(--navy);color:#fff;border-radius:12px;padding:10px 20px;font-size:14px;}
+.btn-navy:hover{background:var(--navydark);}
+.btn-orange{background:var(--orange);color:#fff;border-radius:12px;padding:10px 20px;font-size:14px;}
+.btn-orange:hover{background:#ea580c;}
+.btn-outline{background:transparent;color:var(--navy);border:2px solid var(--navy);border-radius:12px;padding:9px 20px;font-size:14px;}
+.btn-outline:hover{background:var(--navy);color:#fff;}
+.btn-ghost{background:#f1f5f9;color:#475569;border-radius:10px;padding:8px 16px;font-size:13px;border:none;}
+.btn-ghost:hover{background:#e2e8f0;}
+.btn:disabled{opacity:.6;cursor:not-allowed;}
+.btn-sm{padding:7px 14px;font-size:12px;border-radius:10px;}
+
+/* Forms */
+.form-input{width:100%;border:1.5px solid #e2e8f0;border-radius:10px;padding:11px 14px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;outline:none;transition:.15s;background:#fff;color:#1e293b;}
+.form-input:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(27,58,122,.1);}
+label.field-label{display:block;font-size:11px;font-weight:700;color:#64748b;letter-spacing:.06em;margin-bottom:6px;}
+
+/* Status badges */
+.badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:99px;white-space:nowrap;}
+.badge-submitted{background:#fef3c7;color:#92400e;}
+.badge-open{background:#dbeafe;color:#1e40af;}
+.badge-review{background:#ede9fe;color:#5b21b6;}
+.badge-funding{background:#fff7ed;color:#c2410c;}
+.badge-progress{background:#d1fae5;color:#065f46;}
+.badge-completed{background:#f0fdf4;color:#166534;}
+.badge-rejected{background:#fee2e2;color:#991b1b;}
+
+/* Tabs */
+.tabs{border-bottom:1px solid #e8e6e0;display:flex;gap:0;margin-bottom:24px;}
+.tab-btn{padding:10px 18px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:#94a3b8;border-bottom:2px solid transparent;margin-bottom:-1px;font-family:'Plus Jakarta Sans',sans-serif;transition:.15s;}
+.tab-btn.active{color:var(--navy);border-bottom-color:var(--navy);font-weight:700;}
+
+/* OTP inputs */
+.otp-wrap{display:flex;gap:8px;justify-content:center;}
+.otp-input{width:46px;height:54px;border:2px solid #e2e8f0;border-radius:12px;text-align:center;font-size:22px;font-weight:800;color:var(--navy);outline:none;font-family:'Plus Jakarta Sans',sans-serif;transition:.15s;}
+.otp-input:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(27,58,122,.12);}
+
+/* Role chips */
+.role-chip{border:2px solid #e2e8f0;border-radius:12px;padding:12px 8px;cursor:pointer;text-align:center;transition:.15s;background:#fff;}
+.role-chip:hover{border-color:#94a3b8;}
+.role-chip.active{border-color:var(--navy);background:#eff6ff;}
+
+/* Progress bar */
+.progress-bar{height:6px;border-radius:99px;background:#e2e8f0;overflow:hidden;}
+.progress-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--navy),#3b82f6);}
+
+/* Spinner */
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* Ad banners (managed from admin panel) */
+.ad-banner-wrap{max-width:1100px;margin:20px auto;padding:0 20px;}
+.ad-banner{display:block;width:100%;border-radius:12px;overflow:hidden;position:relative;cursor:pointer;text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.06);transition:transform .2s,box-shadow .2s;border:1px solid #e8e6e0;background:#fff;margin-bottom:10px;}
+.ad-banner:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.1);}
+.ad-banner img{width:100%;height:auto;display:block;object-fit:contain;background:#fff;}
+.ad-banner-home img{max-height:110px;padding:10px 16px;}
+.ad-banner-feed img{max-height:150px;padding:12px 16px;}
+.ad-banner-label{position:absolute;top:6px;right:8px;background:rgba(0,0,0,.45);color:#fff;font-size:9px;font-weight:700;letter-spacing:.08em;padding:2px 7px;border-radius:99px;text-transform:uppercase;z-index:2;}
+.ad-banner-text{padding:8px 14px;border-top:1px solid #f1f5f9;}
+.ad-banner-text .t{font-weight:700;color:var(--navy);font-size:13px;}
+.ad-banner-text .s{font-size:11px;color:#64748b;margin-top:2px;}
+@media(max-width:600px){
+  .ad-banner-home img{max-height:80px;padding:8px 12px;}
+  .ad-banner-feed img{max-height:100px;padding:10px 12px;}
+}
+
+/* Partners page — cards grid */
+.partner-card{background:#fff;border:1px solid #e8e6e0;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;transition:.2s;display:flex;flex-direction:column;}
+.partner-card:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(0,0,0,.1);border-color:var(--navy);}
+.partner-card-img{width:100%;height:140px;background:#fff;display:flex;align-items:center;justify-content:center;padding:20px;border-bottom:1px solid #f1f5f9;}
+.partner-card-img img{max-width:100%;max-height:100%;object-fit:contain;}
+.partner-card-body{padding:14px 16px;}
+.partner-card-body .t{font-weight:700;color:var(--navy);font-size:14px;margin-bottom:4px;}
+.partner-card-body .s{font-size:12px;color:#64748b;line-height:1.5;}
+.partner-tier{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.08em;padding:2px 7px;border-radius:99px;text-transform:uppercase;margin-bottom:6px;}
+.tier-founding{background:#fff7ed;color:#c2410c;}
+.tier-platinum{background:#f1f5f9;color:#475569;}
+.tier-supporter{background:#eff6ff;color:#1e40af;}
+
+/* Footer "Supported by" strip */
+.supporters-strip{background:#fafaf7;border-top:1px solid #e8e6e0;border-bottom:1px solid #e8e6e0;padding:16px 20px;}
+.supporters-strip-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:20px;flex-wrap:wrap;justify-content:center;}
+.supporters-label{font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.1em;text-transform:uppercase;}
+.supporter-logo{height:32px;opacity:.7;transition:.2s;text-decoration:none;display:inline-flex;align-items:center;}
+.supporter-logo:hover{opacity:1;}
+.supporter-logo img{height:100%;width:auto;max-width:140px;object-fit:contain;}
+@media(max-width:600px){.supporter-logo{height:24px;}}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;right:24px;z-index:999;transform:translateY(120px);transition:.3s cubic-bezier(.34,1.56,.64,1);pointer-events:none;}
+#toast.show{transform:translateY(0);}
+
+/* Navbar */
+#navbar{background:#fff;border-bottom:1px solid #e8e6e0;position:sticky;top:0;z-index:100;}
+.nav-inner{max-width:1200px;margin:0 auto;padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:60px;}
+.nav-logo{display:flex;align-items:center;gap:10px;cursor:pointer;text-decoration:none;}
+.nav-logo-icon{width:36px;height:36px;background:var(--navy);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:18px;font-family:serif;flex-shrink:0;}
+.nav-links{display:flex;gap:2px;}
+.nav-link{padding:6px 12px;border-radius:8px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;border:none;background:none;font-family:'Plus Jakarta Sans',sans-serif;transition:.15s;}
+.nav-link:hover{color:var(--navy);background:#eff6ff;}
+
+/* Page header */
+.page-header{margin-bottom:24px;}
+.page-label{font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;}
+.page-title{font-family:'Playfair Display',serif;font-size:26px;color:var(--navy);font-weight:700;}
+
+/* Stat cards */
+.stat-grid{display:grid;gap:12px;margin-bottom:24px;}
+.stat-card{background:#fff;border:1px solid #e8e6e0;border-radius:14px;padding:18px;text-align:center;}
+.stat-num{font-size:26px;font-weight:900;line-height:1;}
+.stat-label{font-size:11px;font-weight:600;color:#94a3b8;margin-top:4px;}
+
+/* Project cards */
+.project-card{background:#fff;border:1px solid #e8e6e0;border-radius:16px;overflow:hidden;cursor:pointer;transition:.2s;}
+.project-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.1);}
+
+/* Empty state */
+.empty{text-align:center;padding:48px 24px;color:#94a3b8;}
+.empty i{font-size:36px;margin-bottom:12px;display:block;}
+.empty p{font-size:14px;margin-bottom:16px;}
+
+/* Section wrap */
+.section{max-width:1100px;margin:0 auto;padding:32px 20px;}
+.section-sm{max-width:680px;margin:0 auto;padding:32px 20px;}
+.section-md{max-width:860px;margin:0 auto;padding:32px 20px;}
+
+/* Mobile */
+@media(max-width:640px){
+  .hide-mobile{display:none!important;}
+  .stack-mobile{flex-direction:column!important;}
+  .grid-mobile-1{grid-template-columns:1fr!important;}
+  .otp-input{width:38px;height:46px;font-size:18px;}
+  .page-title{font-size:22px;}
+  .section{padding:20px 16px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ NAVBAR ═══════════════ -->
+<nav id="navbar">
+  <div class="nav-inner">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="nav-logo" onclick="go('home')">
+        <div class="nav-logo-icon">P</div>
+        <span style="font-weight:800;font-size:17px;color:var(--navy);font-family:'Playfair Display',serif;" class="hide-mobile">Public Project</span>
+      </div>
+      <div class="nav-links hide-mobile">
+        <button class="nav-link" onclick="go('feed')">Projects</button>
+        <button class="nav-link" onclick="go('nearby')">Nearby</button>
+        <button class="nav-link" onclick="go('transparency')">Transparency</button>
+        <button class="nav-link" onclick="go('partners')">Partners</button>
+        <button class="nav-link" onclick="go('contact')">Contact</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;" id="navGuest">
+      <button class="btn btn-ghost btn-sm" onclick="go('roleselect')">Sign In</button>
+      <button class="btn btn-orange btn-sm" onclick="go('signup')">Get Started</button>
+    </div>
+    <div style="display:none;align-items:center;gap:10px;" id="navUser">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div id="navAvatar" style="width:34px;height:34px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px;flex-shrink:0;"></div>
+        <div class="hide-mobile">
+          <div id="navName" style="font-size:12px;font-weight:700;color:var(--navy);line-height:1.2;"></div>
+          <div id="navRoleLabel" style="font-size:10px;color:#94a3b8;"></div>
+        </div>
+      </div>
+      <button class="btn btn-navy btn-sm" onclick="openDashboard()"><i class="fas fa-th-large"></i><span class="hide-mobile">Dashboard</span></button>
+      <button onclick="logout()" style="padding:6px 8px;border:none;background:none;cursor:pointer;color:#94a3b8;font-size:15px;" title="Sign out"><i class="fas fa-sign-out-alt"></i></button>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════ HOME ═══════════════ -->
+<div id="page-home" class="page active">
+  <!-- Hero -->
+  <div style="background:linear-gradient(135deg,#1B3A7A,#102550);padding:clamp(48px,8vw,96px) 20px;text-align:center;">
+    <div style="max-width:720px;margin:0 auto;">
+      <div style="display:inline-block;background:rgba(249,115,22,.15);border:1px solid rgba(249,115,22,.3);border-radius:99px;padding:5px 16px;font-size:11px;font-weight:700;color:#fb923c;margin-bottom:20px;letter-spacing:.06em;">🇮🇳 BUILT FOR RURAL INDIA</div>
+      <h1 style="font-family:'Playfair Display',serif;font-size:clamp(30px,6vw,58px);font-weight:900;color:#fff;line-height:1.1;margin-bottom:16px;">Rural Infrastructure <span style="color:#F97316;">Exchange</span> & Monitoring</h1>
+      <p style="color:#93c5fd;font-size:clamp(14px,2vw,17px);line-height:1.7;margin-bottom:36px;">Connecting Citizens, Contractors & Investors on one transparent platform to propose, fund, and track rural infrastructure — in real-time.</p>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-orange" onclick="go('feed')" style="font-size:15px;padding:13px 28px;"><i class="fas fa-search"></i>Browse Projects</button>
+        <button onclick="go('signup')" style="background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.25);color:#fff;font-weight:700;border-radius:12px;padding:12px 28px;font-size:15px;cursor:pointer;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='rgba(255,255,255,.2)'" onmouseout="this.style.background='rgba(255,255,255,.12)'"><i class="fas fa-plus"></i>Submit Proposal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats bar -->
+  <div style="max-width:900px;margin:-24px auto 0;padding:0 20px;">
+    <div class="card" style="display:grid;grid-template-columns:repeat(4,1fr);padding:20px 24px;gap:0;">
+      <div style="text-align:center;padding-right:16px;border-right:1px solid #e8e6e0;">
+        <div style="font-size:26px;font-weight:900;color:var(--navy);">640K+</div>
+        <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-top:2px;">Gram Panchayats</div>
+      </div>
+      <div style="text-align:center;padding:0 16px;border-right:1px solid #e8e6e0;">
+        <div style="font-size:26px;font-weight:900;color:var(--navy);">₹15L Cr</div>
+        <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-top:2px;">Annual Market</div>
+      </div>
+      <div style="text-align:center;padding:0 16px;border-right:1px solid #e8e6e0;">
+        <div style="font-size:26px;font-weight:900;color:var(--navy);">250M+</div>
+        <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-top:2px;">Rural Population</div>
+      </div>
+      <div style="text-align:center;padding-left:16px;">
+        <div style="font-size:26px;font-weight:900;color:var(--navy);">5</div>
+        <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-top:2px;">Stakeholder Roles</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ad Banner (managed from admin panel at /admin-2026) -->
+  <div class="ad-banner-wrap" id="adBannerHome"></div>
+
+  <!-- How it works -->
+  <div style="max-width:960px;margin:56px auto;padding:0 20px;">
+    <div style="text-align:center;margin-bottom:36px;">
+      <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:8px;">HOW IT WORKS</div>
+      <h2 style="font-family:'Playfair Display',serif;font-size:28px;color:var(--navy);">5 Steps — Proposal to Completion</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;" id="stepsGrid">
+      <!-- filled by JS -->
+    </div>
+  </div>
+
+  <!-- Who is it for -->
+  <div style="background:#fff;border-top:1px solid #e8e6e0;border-bottom:1px solid #e8e6e0;padding:56px 20px;">
+    <div style="max-width:960px;margin:0 auto;">
+      <div style="text-align:center;margin-bottom:36px;">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:8px;">WHO IS IT FOR</div>
+        <h2 style="font-family:'Playfair Display',serif;font-size:28px;color:var(--navy);">One Platform, Every Stakeholder</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;" id="rolesGrid">
+        <!-- filled by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div style="max-width:860px;margin:56px auto;padding:0 20px;">
+    <div style="background:var(--navy);border-radius:20px;padding:clamp(32px,5vw,56px) 40px;text-align:center;">
+      <h2 style="font-family:'Playfair Display',serif;color:#fff;font-size:clamp(20px,3vw,28px);margin-bottom:12px;">Track every rupee. Every brick. Every promise.</h2>
+      <p style="color:#93c5fd;font-size:15px;margin-bottom:28px;">Built by Indians, for rural India — transparent infrastructure for every village.</p>
+      <button class="btn btn-orange" onclick="go('signup')" style="font-size:15px;padding:13px 32px;">Create Free Account →</button>
+    </div>
+  </div>
+  <div style="height:40px;"></div>
+</div>
+
+<!-- ═══════════════ PROJECTS FEED ═══════════════ -->
+<div id="page-feed" class="page">
+  <div class="section">
+    <!-- Ad Banner -->
+    <div id="adBannerFeed" style="margin-bottom:20px;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+      <div class="page-header">
+        <div class="page-label">PROJECTS FEED</div>
+        <h1 class="page-title">Active Infrastructure Projects</h1>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <select id="filterStatus" class="form-input" style="width:auto;font-size:13px;" onchange="renderFeed()">
+          <option value="">All Statuses</option>
+          <option value="CITIZEN_SUBMITTED">Submitted</option>
+          <option value="OPEN_FOR_PROPOSAL">Open for Bids</option>
+          <option value="PROPOSAL_UNDER_REVIEW">Under Review</option>
+          <option value="FUNDING_PHASE">Funding Phase</option>
+          <option value="IN_PROGRESS">In Progress</option>
+          <option value="COMPLETED">Completed</option>
+        </select>
+        <input id="filterSearch" class="form-input" placeholder="Search..." style="width:180px;font-size:13px;" oninput="renderFeed()">
+      </div>
+    </div>
+    <div id="feedGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ NEARBY ═══════════════ -->
+<div id="page-nearby" class="page">
+  <div class="section-md">
+    <div class="page-header">
+      <div class="page-label">NEARBY STATUS</div>
+      <h1 class="page-title">Projects Near You</h1>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+      <input id="nearbyPincode" class="form-input" placeholder="Enter Pincode (e.g. 583119)" maxlength="6" style="max-width:260px;" onkeypress="if(event.key==='Enter')searchNearby()">
+      <button class="btn btn-navy" onclick="searchNearby()"><i class="fas fa-search"></i>Search</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('nearbyPincode').value='';searchNearby()">Show All</button>
+    </div>
+    <div id="nearbyResults"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ TRANSPARENCY ═══════════════ -->
+<div id="page-transparency" class="page">
+  <div class="section">
+    <div class="page-header">
+      <div class="page-label">TRANSPARENCY HUB</div>
+      <h1 class="page-title">Platform Audit Trail</h1>
+    </div>
+    <div id="transparencyStats" class="stat-grid" style="grid-template-columns:repeat(4,1fr);"></div>
+    <div class="card" style="padding:24px;">
+      <h3 style="font-weight:700;color:var(--navy);margin-bottom:16px;font-size:15px;">All Projects — Live Status</h3>
+      <div id="transparencyList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ LOGIN ═══════════════ -->
+<div id="page-login" class="page">
+  <div style="min-height:calc(100vh - 60px);display:flex;align-items:center;justify-content:center;padding:32px 16px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;max-width:860px;width:100%;border-radius:24px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.14);">
+      <!-- Left -->
+      <div style="background:var(--navy);padding:48px 40px;display:flex;flex-direction:column;justify-content:center;" class="hide-mobile">
+        <div style="font-family:'Playfair Display',serif;font-size:28px;color:#fff;font-weight:700;margin-bottom:12px;">Citizen Sign In</div>
+        <p style="color:#93c5fd;font-size:14px;line-height:1.7;margin-bottom:32px;">Submit proposals, track project progress, and download data for your area.</p>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div style="display:flex;align-items:center;gap:12px;"><div style="width:34px;height:34px;border-radius:8px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-paper-plane" style="color:var(--orange);font-size:13px;"></i></div><span style="color:#bfdbfe;font-size:13px;">Submit infrastructure proposals</span></div>
+          <div style="display:flex;align-items:center;gap:12px;"><div style="width:34px;height:34px;border-radius:8px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-chart-line" style="color:var(--orange);font-size:13px;"></i></div><span style="color:#bfdbfe;font-size:13px;">Track real-time project progress</span></div>
+          <div style="display:flex;align-items:center;gap:12px;"><div style="width:34px;height:34px;border-radius:8px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-download" style="color:var(--orange);font-size:13px;"></i></div><span style="color:#bfdbfe;font-size:13px;">Download project data & reports</span></div>
+        </div>
+        <div style="margin-top:32px;padding-top:20px;border-top:1px solid rgba(255,255,255,.1);">
+          <div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:10px;">Not a citizen?</div>
+          <button onclick="go('roleselect')" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#93c5fd;font-size:12px;font-weight:600;padding:8px 16px;border-radius:8px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;">← Choose different role</button>
+        </div>
+      </div>
+            <!-- Right -->
+      <div style="background:#fff;padding:48px 40px;">
+        <!-- Step 1: Mobile + Role -->
+        <div id="loginStep1">
+          <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;margin-bottom:20px;display:flex;align-items:center;gap:8px;">
+            <i class="fas fa-user" style="color:var(--navy);font-size:14px;"></i>
+            <span style="font-size:13px;font-weight:600;color:var(--navy);">Citizen Sign In</span>
+            <span onclick="go('roleselect')" style="margin-left:auto;font-size:11px;color:var(--orange);cursor:pointer;font-weight:700;">Wrong role? ←</span>
+          </div>
+          <h2 style="font-family:'Playfair Display',serif;font-size:24px;color:var(--navy);margin-bottom:4px;">Welcome Back</h2>
+          <p style="color:#94a3b8;font-size:13px;margin-bottom:24px;">Enter your registered mobile number</p>
+          <label class="field-label">MOBILE NUMBER</label>
+          <div style="display:flex;gap:8px;margin-bottom:20px;">
+            <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:11px 14px;font-weight:700;color:#64748b;font-size:14px;white-space:nowrap;flex-shrink:0;">+91</div>
+            <input id="loginMobile" class="form-input" placeholder="10-digit number" maxlength="10" type="tel" onkeypress="if(event.key==='Enter')sendLoginOTP()" style="width:100%;">
+          </div>
+          <button class="btn btn-navy" onclick="sendLoginOTP()" id="loginOTPBtn" style="width:100%;justify-content:center;font-size:14px;padding:12px;">
+            <i class="fas fa-mobile-alt"></i>Send OTP
+          </button>
+          <div style="text-align:center;margin-top:20px;font-size:13px;color:#94a3b8;">
+            New here? <span onclick="go('signup')" style="color:var(--navy);font-weight:700;cursor:pointer;">Create account →</span>
+          </div>
+        </div>
+        <!-- Step 2: OTP -->
+        <div id="loginStep2" style="display:none;">
+          <div style="text-align:center;margin-bottom:24px;">
+            <div style="width:60px;height:60px;background:#eff6ff;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;"><i class="fas fa-mobile-alt" style="color:var(--navy);font-size:24px;"></i></div>
+            <div style="font-weight:700;color:var(--navy);font-size:17px;margin-bottom:4px;">OTP Sent!</div>
+            <div style="font-size:13px;color:#64748b;">Enter the 6-digit code sent to<br><strong>+91 <span id="loginMobileShow"></span></strong></div>
+          </div>
+          <div class="otp-wrap" id="loginOtpBoxes" style="margin-bottom:20px;"></div>
+          <button class="btn btn-navy" onclick="verifyLoginOTP()" id="verifyLoginBtn" style="width:100%;justify-content:center;font-size:14px;padding:12px;">
+            <i class="fas fa-check-circle"></i>Verify & Sign In
+          </button>
+          <div style="text-align:center;margin-top:14px;font-size:13px;color:#94a3b8;">
+            Didn't receive? <span onclick="resendOTP('login')" style="color:var(--navy);font-weight:700;cursor:pointer;">Resend OTP</span>
+          </div>
+          <div style="text-align:center;margin-top:8px;">
+            <span onclick="resetLogin()" style="font-size:12px;color:#94a3b8;cursor:pointer;">← Change number</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SIGNUP ═══════════════ -->
+<div id="page-signup" class="page">
+  <div style="min-height:calc(100vh - 60px);display:flex;align-items:center;justify-content:center;padding:32px 16px;">
+    <div class="card" style="max-width:500px;width:100%;padding:36px;">
+      <!-- Step 1 -->
+      <div id="signupStep1">
+        <h2 style="font-family:'Playfair Display',serif;font-size:24px;color:var(--navy);margin-bottom:4px;">Create Account</h2>
+        <p style="color:#94a3b8;font-size:13px;margin-bottom:24px;">Join the Public Project platform</p>
+        <label class="field-label">I AM A</label>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px;">
+          <div class="role-chip active" onclick="selectRole('CITIZEN',this)" id="rc_CITIZEN">
+            <i class="fas fa-user" style="color:var(--navy);font-size:18px;margin-bottom:4px;display:block;"></i>
+            <div style="font-size:12px;font-weight:700;color:var(--navy);">Citizen</div>
+          </div>
+          <div class="role-chip" onclick="selectRole('CONTRACTOR',this)" id="rc_CONTRACTOR">
+            <i class="fas fa-hard-hat" style="color:#64748b;font-size:18px;margin-bottom:4px;display:block;"></i>
+            <div style="font-size:12px;font-weight:700;color:#64748b;">Contractor</div>
+          </div>
+          <div class="role-chip" onclick="selectRole('INVESTOR',this)" id="rc_INVESTOR">
+            <i class="fas fa-coins" style="color:#64748b;font-size:18px;margin-bottom:4px;display:block;"></i>
+            <div style="font-size:12px;font-weight:700;color:#64748b;">Investor</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px;">
+          <div>
+            <label class="field-label">FULL NAME / ORGANISATION *</label>
+            <input id="su_name" class="form-input" placeholder="e.g. Ramesh Kumar">
+          </div>
+          <div>
+            <label class="field-label">MOBILE NUMBER *</label>
+            <div style="display:flex;gap:8px;">
+              <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:11px 14px;font-weight:700;color:#64748b;font-size:14px;flex-shrink:0;">+91</div>
+              <input id="su_mobile" class="form-input" placeholder="10-digit number" maxlength="10" type="tel">
+            </div>
+          </div>
+          <div>
+            <label class="field-label">EMAIL ADDRESS *</label>
+            <input id="su_email" class="form-input" placeholder="you@example.com" type="email">
+          </div>
+          <div>
+            <label class="field-label">PINCODE *</label>
+            <input id="su_pincode" class="form-input" placeholder="6-digit pincode" maxlength="6">
+          </div>
+          <!-- Password for Contractor/Investor -->
+          <div id="su_password_wrap" style="display:none;">
+            <label class="field-label">CREATE PASSWORD *</label>
+            <div style="position:relative;">
+              <input id="su_password" class="form-input" type="password" placeholder="Min 8 characters" style="padding-right:44px;">
+              <button onclick="toggleSignupPass(this)" type="button" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;font-size:14px;"><i class="fas fa-eye"></i></button>
+            </div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:4px;"><i class="fas fa-info-circle" style="margin-right:4px;color:var(--navy);"></i>You'll use this email & password to sign into your dedicated portal</div>
+          </div>
+        </div>
+        <!-- All features free during launch -->
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+          <i class="fas fa-gift" style="color:#059669;font-size:16px;"></i>
+          <div><div style="font-size:13px;font-weight:700;color:#065f46;">All features free during launch!</div><div style="font-size:11px;color:#059669;margin-top:1px;">Full access · No payment required</div></div>
+        </div>
+        <!-- Document upload for Contractor/Investor -->
+        <div id="docUploadSection" style="display:none;">
+          <label class="field-label">VERIFICATION DOCUMENTS *</label>
+          <div style="background:#f8f7f4;border-radius:12px;padding:16px;margin-bottom:4px;">
+            <div id="docList" style="display:flex;flex-direction:column;gap:10px;"></div>
+          </div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:4px;">Upload GST Certificate, PAN Card, and Business License</div>
+        </div>
+        <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:20px;cursor:pointer;font-size:13px;color:#64748b;">
+          <input type="checkbox" id="su_terms" style="margin-top:2px;flex-shrink:0;">
+          I agree to the <span onclick="go('legal')" style="color:var(--navy);font-weight:700;cursor:pointer;margin-left:4px;">Terms & Conditions</span>
+        </label>
+        <button class="btn btn-orange" onclick="handleSignup()" id="signupBtn" style="width:100%;justify-content:center;font-size:14px;padding:12px;">
+          <i class="fas fa-user-plus"></i>Create Account & Get OTP
+        </button>
+        <div style="text-align:center;margin-top:16px;font-size:13px;color:#94a3b8;">
+          Have account? <span onclick="go('login')" style="color:var(--navy);font-weight:700;cursor:pointer;">Sign in →</span>
+        </div>
+      </div>
+      <!-- Step 2: OTP -->
+      <div id="signupStep2" style="display:none;text-align:center;">
+        <div style="width:60px;height:60px;background:#eff6ff;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;"><i class="fas fa-mobile-alt" style="color:var(--navy);font-size:24px;"></i></div>
+        <div style="font-weight:700;color:var(--navy);font-size:17px;margin-bottom:6px;">Verify Mobile</div>
+        <div style="font-size:13px;color:#64748b;margin-bottom:24px;">6-digit OTP sent to +91 <strong id="su_mobileShow"></strong></div>
+        <div class="otp-wrap" id="signupOtpBoxes" style="margin-bottom:20px;"></div>
+        <button class="btn btn-orange" onclick="verifySignupOTP()" id="verifySignupBtn" style="width:100%;justify-content:center;font-size:14px;padding:12px;">
+          <i class="fas fa-check-circle"></i>Verify & Create Account
+        </button>
+        <div style="margin-top:14px;font-size:13px;color:#94a3b8;">
+          Didn't receive? <span onclick="resendOTP('signup')" style="color:var(--navy);font-weight:700;cursor:pointer;">Resend OTP</span>
+        </div>
+        <div style="margin-top:8px;"><span onclick="resetSignup()" style="font-size:12px;color:#94a3b8;cursor:pointer;">← Go back</span></div>
+      </div>
+      <!-- Step 3: Premium payment -->
+      <div id="signupStep3" style="display:none;text-align:center;">
+        <div style="width:64px;height:64px;background:linear-gradient(135deg,#F97316,#ea580c);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;"><i class="fas fa-crown" style="color:#fff;font-size:26px;"></i></div>
+        <div style="font-size:22px;font-weight:900;color:var(--navy);margin-bottom:4px;">Activate Premium</div>
+        <div style="font-size:13px;color:#94a3b8;margin-bottom:20px;">₹299 / year · Cancel anytime</div>
+        <ul style="text-align:left;font-size:13px;color:#475569;margin-bottom:24px;display:inline-block;">
+          <li style="margin-bottom:8px;padding-left:24px;position:relative;"><i class="fas fa-check" style="color:#059669;position:absolute;left:0;top:1px;"></i>Download AI-summarised project data</li>
+          <li style="margin-bottom:8px;padding-left:24px;position:relative;"><i class="fas fa-check" style="color:#059669;position:absolute;left:0;top:1px;"></i>Contractor progress reports</li>
+          <li style="margin-bottom:8px;padding-left:24px;position:relative;"><i class="fas fa-check" style="color:#059669;position:absolute;left:0;top:1px;"></i>SMS alerts for your area</li>
+          <li style="padding-left:24px;position:relative;"><i class="fas fa-check" style="color:#059669;position:absolute;left:0;top:1px;"></i>Priority 24hr proposal review</li>
+        </ul>
+        <button class="btn btn-orange" onclick="startPremiumPayment('signup')" id="premiumPayBtn" style="width:100%;justify-content:center;font-size:14px;padding:12px;margin-bottom:10px;">
+          <i class="fas fa-crown"></i>Pay ₹299 & Activate
+        </button>
+        <button onclick="completeRegistration(false)" style="width:100%;background:none;border:none;color:#94a3b8;font-size:13px;cursor:pointer;padding:8px;">Continue with Free plan →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ CITIZEN DASHBOARD ═══════════════ -->
+<div id="page-citizen" class="page">
+  <div class="section">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+      <div>
+        <div class="page-label">CITIZEN DASHBOARD</div>
+        <h1 class="page-title" id="citizenWelcome">Welcome</h1>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-navy btn-sm" onclick="go('submit')"><i class="fas fa-plus"></i>New Proposal</button>
+
+      </div>
+    </div>
+    <!-- Launch banner -->
+    <div style="background:linear-gradient(135deg,#059669,#047857);border-radius:14px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
+      <i class="fas fa-gift" style="color:#fff;font-size:18px;"></i>
+      <div><div style="color:#fff;font-weight:700;font-size:14px;">All features unlocked — Free during launch!</div><div style="color:#a7f3d0;font-size:12px;margin-top:1px;">Thank you for being an early user of Public Project 🙏</div></div>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="citizenTab('proposals',this)">My Proposals</button>
+      <button class="tab-btn" onclick="citizenTab('downloads',this)">Downloads</button>
+    </div>
+    <div id="citizenProposals"></div>
+    <div id="citizenDownloads" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ SUBMIT PROPOSAL ═══════════════ -->
+<div id="page-submit" class="page">
+  <div class="section-sm">
+    <button onclick="openDashboard()" class="btn btn-ghost btn-sm" style="margin-bottom:16px;"><i class="fas fa-arrow-left"></i>Back</button>
+    <div class="page-label">NEW PROPOSAL</div>
+    <h1 class="page-title" style="margin-bottom:24px;">Submit Infrastructure Proposal</h1>
+    <div class="card" style="padding:28px;">
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div>
+          <label class="field-label">PROJECT TITLE *</label>
+          <input id="p_title" class="form-input" placeholder="e.g. Mahagaon Road Repair – 3km stretch">
+        </div>
+        <div>
+          <label class="field-label">CATEGORY *</label>
+          <select id="p_cat" class="form-input">
+            <option>Roads & Bridges</option><option>Water Supply</option><option>Renewable Energy</option>
+            <option>Education</option><option>Healthcare</option><option>Drainage</option><option>Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label">DESCRIPTION *</label>
+          <textarea id="p_desc" class="form-input" rows="4" placeholder="Describe the problem, location, and how many people are affected..."></textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" class="grid-mobile-1">
+          <div>
+            <label class="field-label">DISTRICT *</label>
+            <input id="p_dist" class="form-input" placeholder="e.g. Ballari">
+          </div>
+          <div>
+            <label class="field-label">PINCODE *</label>
+            <input id="p_pin" class="form-input" placeholder="6-digit" maxlength="6">
+          </div>
+        </div>
+        <div>
+          <label class="field-label">PRIORITY</label>
+          <select id="p_priority" class="form-input">
+            <option value="MEDIUM">Medium</option><option value="HIGH">High</option>
+            <option value="CRITICAL">Critical</option><option value="LOW">Low</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label">PHOTO / VIDEO (optional)</label>
+          <div id="mediaUploadArea" style="border:2px dashed #e2e8f0;border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:.15s;position:relative;" onclick="document.getElementById('p_mediaFile').click()" onmouseover="this.style.borderColor='#1B3A7A'" onmouseout="this.style.borderColor='#e2e8f0'">
+            <input type="file" id="p_mediaFile" accept="image/*,video/*" style="display:none;" onchange="handleMediaUpload(this)">
+            <div id="mediaPlaceholder">
+              <i class="fas fa-camera" style="font-size:24px;color:#94a3b8;margin-bottom:8px;display:block;"></i>
+              <div style="font-size:13px;color:#64748b;">Click to upload photo or video</div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:4px;">JPG, PNG, MP4 · Max 10MB</div>
+            </div>
+            <div id="mediaPreview" style="display:none;">
+              <img id="mediaImg" style="max-width:100%;max-height:200px;border-radius:8px;object-fit:cover;" src="">
+              <div style="margin-top:8px;font-size:12px;color:#059669;font-weight:600;" id="mediaFileName"></div>
+              <button onclick="event.stopPropagation();clearMedia()" style="margin-top:4px;background:none;border:none;color:#94a3b8;font-size:12px;cursor:pointer;text-decoration:underline;">Remove</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-orange" onclick="submitProposal()" id="submitPropBtn" style="width:100%;justify-content:center;font-size:14px;padding:12px;margin-top:4px;">
+          <i class="fas fa-paper-plane"></i>Submit Proposal
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ CONTRACTOR DASHBOARD ═══════════════ -->
+<div id="page-contractor" class="page">
+  <div class="section">
+    <div class="page-label">CONTRACTOR HUB</div>
+    <h1 class="page-title" style="margin-bottom:20px;">Contractor Execution Hub</h1>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="contractorTab('open',this)">Open Proposals</button>
+      <button class="tab-btn" onclick="contractorTab('active',this)">My Active Projects</button>
+      <button class="tab-btn" onclick="contractorTab('profile',this)">My Profile</button>
+    </div>
+    <div id="cOpen"></div>
+    <div id="cActive" style="display:none;"></div>
+    <div id="cProfile" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ INVESTOR DASHBOARD ═══════════════ -->
+<div id="page-investor" class="page">
+  <div class="section">
+    <div class="page-label">INVESTOR BOARD</div>
+    <h1 class="page-title" style="margin-bottom:20px;">Investment Opportunity Board</h1>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="investorTab('opps',this)">Opportunities</button>
+      <button class="tab-btn" onclick="investorTab('portfolio',this)">My Portfolio</button>
+      <button class="tab-btn" onclick="investorTab('reports',this)">Reports</button>
+    </div>
+    <div id="iOpps"></div>
+    <div id="iPortfolio" style="display:none;"></div>
+    <div id="iReports" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ ADMIN PANEL (restricted) ═══════════════ -->
+<div id="page-admin" class="page">
+  <div class="section">
+    <div class="page-label">ADMIN PANEL</div>
+    <h1 class="page-title" style="margin-bottom:20px;">Platform Administration</h1>
+    <div id="adminStats" class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;"></div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="adminTab('pending',this)">Pending Proposals <span id="pendingCount" style="background:#fee2e2;color:#991b1b;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px;"></span></button>
+      <button class="tab-btn" onclick="adminTab('kyc',this)">KYC Approvals</button>
+      <button class="tab-btn" onclick="adminTab('all',this)">All Projects</button>
+    </div>
+    <div id="aPending"></div>
+    <div id="aKyc" style="display:none;"></div>
+    <div id="aAll" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ CEO / SUPER ADMIN ═══════════════ -->
+<div id="page-ceo" class="page">
+  <div class="section">
+    <div class="page-label">CEO SUITE</div>
+    <h1 class="page-title" style="margin-bottom:20px;">Platform Overview</h1>
+    <div id="ceoStats" class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px;"></div>
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;" class="grid-mobile-1">
+      <div class="card" style="padding:24px;">
+        <h3 style="font-weight:700;color:var(--navy);margin-bottom:16px;font-size:15px;"><i class="fas fa-history" style="margin-right:8px;color:var(--orange);"></i>Audit Log</h3>
+        <div id="ceoAuditLog"></div>
+      </div>
+      <div class="card" style="padding:24px;">
+        <h3 style="font-weight:700;color:var(--navy);margin-bottom:16px;font-size:15px;"><i class="fas fa-users" style="margin-right:8px;color:var(--orange);"></i>Registered Users</h3>
+        <div id="ceoUsers"></div>
+      </div>
+    </div>
+    <!-- Contact Messages -->
+    <div class="card" style="padding:24px;margin-top:16px;">
+      <h3 style="font-weight:700;color:var(--navy);margin-bottom:16px;font-size:15px;"><i class="fas fa-envelope" style="margin-right:8px;color:var(--orange);"></i>Contact Form Messages</h3>
+      <div id="ceoContacts"></div>
+    </div>
+    <div style="display:none;">
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ PARTNERS ═══════════════ -->
+<div id="page-partners" class="page">
+  <!-- Hero -->
+  <div style="background:linear-gradient(135deg,#1B3A7A,#102550);padding:64px 20px 48px;text-align:center;">
+    <div style="max-width:760px;margin:0 auto;">
+      <div style="display:inline-block;background:rgba(249,115,22,.15);border:1px solid rgba(249,115,22,.3);border-radius:99px;padding:5px 16px;font-size:11px;font-weight:700;color:#fb923c;margin-bottom:16px;letter-spacing:.06em;">OUR SUPPORTERS</div>
+      <h1 style="font-family:'Playfair Display',serif;font-size:clamp(28px,5vw,44px);font-weight:900;color:#fff;line-height:1.15;margin-bottom:14px;">Backed by India's <span style="color:#F97316;">Changemakers</span></h1>
+      <p style="color:#93c5fd;font-size:15px;line-height:1.7;max-width:620px;margin:0 auto;">Transparent rural infrastructure needs transparent partners. Meet the foundations, companies, and civic-tech organisations powering Public Project.</p>
+    </div>
+  </div>
+
+  <!-- Tier rail -->
+  <div style="max-width:1100px;margin:-20px auto 0;padding:0 20px;">
+    <div class="card" style="display:flex;padding:14px 20px;gap:0;flex-wrap:wrap;justify-content:space-around;">
+      <div style="text-align:center;padding:6px 12px;">
+        <div id="partnerCountFounding" style="font-size:22px;font-weight:900;color:var(--navy);">—</div>
+        <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.08em;">FOUNDING PARTNERS</div>
+      </div>
+      <div style="text-align:center;padding:6px 12px;border-left:1px solid #e8e6e0;border-right:1px solid #e8e6e0;">
+        <div id="partnerCountCSR" style="font-size:22px;font-weight:900;color:var(--navy);">—</div>
+        <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.08em;">CSR & FOUNDATIONS</div>
+      </div>
+      <div style="text-align:center;padding:6px 12px;">
+        <div id="partnerCountSupport" style="font-size:22px;font-weight:900;color:var(--navy);">—</div>
+        <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.08em;">SUPPORTING</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Partners grid -->
+  <div style="max-width:1100px;margin:40px auto;padding:0 20px;">
+    <div id="partnersGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;"></div>
+    <div id="partnersEmpty" style="display:none;text-align:center;padding:48px 20px;color:#94a3b8;">
+      <i class="fas fa-handshake" style="font-size:40px;color:#cbd5e1;display:block;margin-bottom:14px;"></i>
+      <p style="font-size:14px;margin-bottom:6px;color:#64748b;">We're actively onboarding our first partners.</p>
+      <p style="font-size:13px;">Your organisation could be listed here — <a onclick="go('contact')" style="color:var(--navy);font-weight:700;cursor:pointer;">reach out</a>.</p>
+    </div>
+  </div>
+
+  <!-- Become a partner CTA -->
+  <div style="max-width:900px;margin:40px auto;padding:0 20px;">
+    <div style="background:var(--navy);border-radius:20px;padding:clamp(28px,4vw,44px) 36px;color:#fff;">
+      <div style="text-align:center;margin-bottom:24px;">
+        <div style="font-size:11px;font-weight:700;color:#F97316;letter-spacing:.1em;margin-bottom:8px;">BECOME A PARTNER</div>
+        <h2 style="font-family:'Playfair Display',serif;font-size:clamp(22px,3.5vw,30px);margin-bottom:10px;">Three ways to back transparent rural infrastructure</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">
+        <div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:18px;">
+          <div style="display:inline-block;background:#F97316;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;margin-bottom:8px;letter-spacing:.06em;">FOUNDING</div>
+          <div style="font-weight:700;font-size:15px;margin-bottom:6px;">Early-stage backer</div>
+          <div style="font-size:12px;color:#93c5fd;line-height:1.6;">Permanent recognition on every page. Limited to first 10 partners.</div>
+        </div>
+        <div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:18px;">
+          <div style="display:inline-block;background:#94a3b8;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;margin-bottom:8px;letter-spacing:.06em;">CSR</div>
+          <div style="font-weight:700;font-size:15px;margin-bottom:6px;">Fund a project</div>
+          <div style="font-size:12px;color:#93c5fd;line-height:1.6;">Use your CSR mandate with full transparency dashboards for each rupee.</div>
+        </div>
+        <div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:18px;">
+          <div style="display:inline-block;background:#60a5fa;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;margin-bottom:8px;letter-spacing:.06em;">SUPPORTER</div>
+          <div style="font-weight:700;font-size:15px;margin-bottom:6px;">Cause alignment</div>
+          <div style="font-size:12px;color:#93c5fd;line-height:1.6;">Put your logo alongside a movement you believe in. No minimum commitment.</div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:26px;">
+        <button class="btn btn-orange" onclick="go('contact')" style="font-size:14px;padding:12px 28px;"><i class="fas fa-handshake"></i>Start a conversation</button>
+      </div>
+    </div>
+  </div>
+  <div style="height:40px;"></div>
+</div>
+
+<!-- ═══════════════ LEGAL ═══════════════ -->
+<div id="page-legal" class="page">
+  <div style="max-width:700px;margin:40px auto;padding:0 20px;">
+    <div class="card" style="padding:40px;">
+      <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:var(--navy);margin-bottom:24px;">Terms & Conditions</h1>
+      <div style="font-size:14px;line-height:1.8;color:#475569;">
+        <p style="margin-bottom:16px;"><strong>Public Project</strong> is a platform operated by <strong>Choicesphere (OPC) Private Limited</strong>, a company incorporated on 31st March 2026 under the Companies Act, 2013. CIN: U62013KA2026OPC218620. Registered Address: 12 Near Hanuman Temple, Hanamapur, Ramdurg, Belgaum – 591123, Karnataka.</p>
+        <h3 style="color:var(--navy);margin:16px 0 8px;">1. Platform Approval</h3>
+        <p style="margin-bottom:16px;">All proposals, contractors, and investors are approved by platform admins only — not any government body. Public Project is a fully private company.</p>
+        <h3 style="color:var(--navy);margin:16px 0 8px;">2. User Responsibilities</h3>
+        <p style="margin-bottom:16px;">Users must provide accurate information. Contractors and Investors undergo KYC by platform admins before gaining full access. Misuse will result in account termination.</p>
+        <h3 style="color:var(--navy);margin:16px 0 8px;">3. Payments</h3>
+        <p style="margin-bottom:16px;">Public Project is currently free for all users during our launch phase. We are building trust and transparency first. Monetization will be introduced transparently in future.</p>
+        <h3 style="color:var(--navy);margin:16px 0 8px;">4. Data & Privacy</h3>
+        <p style="margin-bottom:16px;">Project data is publicly visible for transparency. Personal data (mobile, email) is stored securely and not sold or shared with third parties. SMS OTP is used only for identity verification.</p>
+        <h3 style="color:var(--navy);margin:16px 0 8px;">5. Contact</h3>
+        <p><i class="fas fa-envelope" style="margin-right:6px;color:var(--orange);"></i>choicesphere07@gmail.com &nbsp;|&nbsp; <i class="fas fa-phone" style="margin-right:6px;color:var(--orange);"></i>+91 8431356927 &nbsp;|&nbsp; <i class="fas fa-globe" style="margin-right:6px;color:var(--orange);"></i>publicproject.in</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODALS ═══════════════ -->
+
+<!-- Project Detail -->
+<div id="modalProject" class="modal">
+  <div class="modal-box" style="max-width:600px;padding:32px;">
+    <button onclick="closeModal('modalProject')" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;color:#94a3b8;cursor:pointer;"><i class="fas fa-times"></i></button>
+    <div id="projectModalContent"></div>
+  </div>
+</div>
+
+<!-- Bid -->
+<div id="modalBid" class="modal">
+  <div class="modal-box" style="max-width:460px;padding:32px;">
+    <button onclick="closeModal('modalBid')" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;color:#94a3b8;cursor:pointer;"><i class="fas fa-times"></i></button>
+    <h3 style="font-family:'Playfair Display',serif;font-size:20px;color:var(--navy);margin-bottom:20px;">Submit Execution Proposal</h3>
+    <input type="hidden" id="bidProjId">
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px;">
+      <div><label class="field-label">ESTIMATED BUDGET (₹)</label><input id="bidBudget" class="form-input" type="number" placeholder="e.g. 2500000"></div>
+      <div><label class="field-label">TIMELINE</label><input id="bidTimeline" class="form-input" placeholder="e.g. 8 months"></div>
+      <div><label class="field-label">EXECUTION PLAN</label><textarea id="bidPlan" class="form-input" rows="3" placeholder="Your approach, team, and relevant experience..."></textarea></div>
+    </div>
+    <button class="btn btn-navy" onclick="submitBid()" style="width:100%;justify-content:center;font-size:14px;padding:12px;"><i class="fas fa-file-upload"></i>Submit Proposal to Admin</button>
+  </div>
+</div>
+
+
+
+<!-- AI Summary -->
+<div id="modalAI" class="modal">
+  <div class="modal-box" style="max-width:540px;padding:32px;">
+    <button onclick="closeModal('modalAI')" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;color:#94a3b8;cursor:pointer;"><i class="fas fa-times"></i></button>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <div style="width:38px;height:38px;background:#eff6ff;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-robot" style="color:var(--navy);font-size:17px;"></i></div>
+      <div style="font-weight:700;color:var(--navy);font-size:16px;">AI Project Summary</div>
+      <span style="font-size:10px;background:#fff7ed;color:#c2410c;padding:2px 8px;border-radius:99px;font-weight:700;margin-left:auto;">PREMIUM</span>
+    </div>
+    <div id="aiContent" style="font-size:14px;line-height:1.75;color:#475569;min-height:80px;"></div>
+    <div style="display:flex;gap:8px;margin-top:20px;" id="aiActions" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ TOAST ═══════════════ -->
+<div id="toast">
+  <div style="background:var(--navy);color:#fff;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.25);display:flex;align-items:center;gap:10px;max-width:320px;">
+    <i id="toastIcon" class="fas fa-check-circle" style="color:#34d399;flex-shrink:0;"></i>
+    <span id="toastMsg"></span>
+  </div>
+</div>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<!-- ═══════════════ CONTACT US ═══════════════ -->
+<div id="page-contact" class="page">
+  <div style="max-width:680px;margin:0 auto;padding:40px 20px;">
+    <div style="text-align:center;margin-bottom:40px;">
+      <div class="page-label">GET IN TOUCH</div>
+      <h1 style="font-family:'Playfair Display',serif;font-size:32px;color:var(--navy);margin-bottom:12px;">Contact Us</h1>
+      <p style="color:#64748b;font-size:15px;line-height:1.7;">Have a question, proposal, or partnership idea? Fill the form below and we'll get back to you within <strong>24 hours</strong>.</p>
+    </div>
+
+    <!-- Contact info cards -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:36px;" class="grid-mobile-1">
+      <div class="card-sm" style="padding:18px;text-align:center;">
+        <i class="fas fa-envelope" style="color:var(--orange);font-size:22px;margin-bottom:10px;display:block;"></i>
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:4px;">EMAIL</div>
+        <div style="font-size:12px;font-weight:700;color:var(--navy);">choicesphere07@gmail.com</div>
+      </div>
+      <div class="card-sm" style="padding:18px;text-align:center;">
+        <i class="fas fa-phone-alt" style="color:var(--orange);font-size:22px;margin-bottom:10px;display:block;"></i>
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:4px;">PHONE</div>
+        <div style="font-size:12px;font-weight:700;color:var(--navy);">+91 8431356927</div>
+      </div>
+      <div class="card-sm" style="padding:18px;text-align:center;">
+        <i class="fas fa-clock" style="color:var(--orange);font-size:22px;margin-bottom:10px;display:block;"></i>
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:4px;">RESPONSE TIME</div>
+        <div style="font-size:12px;font-weight:700;color:var(--navy);">Within 24 Hours</div>
+      </div>
+    </div>
+
+    <!-- Contact form -->
+    <div class="card" style="padding:32px;">
+      <div id="contactFormWrap">
+        <h3 style="font-family:'Playfair Display',serif;font-size:20px;color:var(--navy);margin-bottom:20px;">Send us a message</h3>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div>
+            <label class="field-label">YOUR NAME *</label>
+            <input id="ct_name" class="form-input" placeholder="e.g. Ramesh Kumar">
+          </div>
+          <div>
+            <label class="field-label">MOBILE NUMBER *</label>
+            <div style="display:flex;gap:8px;">
+              <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:11px 14px;font-weight:700;color:#64748b;font-size:14px;flex-shrink:0;">+91</div>
+              <input id="ct_mobile" class="form-input" placeholder="10-digit number" maxlength="10" type="tel">
+            </div>
+          </div>
+          <div>
+            <label class="field-label">EMAIL ADDRESS</label>
+            <input id="ct_email" class="form-input" placeholder="you@example.com" type="email">
+          </div>
+          <div>
+            <label class="field-label">I AM A</label>
+            <select id="ct_role" class="form-input">
+              <option value="Citizen">Citizen</option>
+              <option value="Contractor">Contractor / Builder</option>
+              <option value="Investor">Investor / CSR</option>
+              <option value="NGO">NGO / Government Body</option>
+              <option value="Media">Media / Journalist</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">SUBJECT *</label>
+            <select id="ct_subject" class="form-input">
+              <option value="General Inquiry">General Inquiry</option>
+              <option value="Project Proposal">Submit a Project Proposal</option>
+              <option value="Partnership">Partnership / Collaboration</option>
+              <option value="Investment">Investment / CSR Funding</option>
+              <option value="Technical Support">Technical Support</option>
+              <option value="Media / Press">Media / Press</option>
+              <option value="Complaint">Complaint / Feedback</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">MESSAGE *</label>
+            <textarea id="ct_message" class="form-input" rows="5" placeholder="Tell us how we can help you. Be as specific as possible — the more detail, the better we can assist you."></textarea>
+          </div>
+          <button class="btn btn-orange" onclick="submitContact()" id="contactSubmitBtn" style="width:100%;justify-content:center;font-size:15px;padding:13px;margin-top:4px;">
+            <i class="fas fa-paper-plane"></i>Send Message
+          </button>
+          <p style="font-size:12px;color:#94a3b8;text-align:center;margin-top:4px;">
+            <i class="fas fa-shield-alt" style="margin-right:4px;color:#059669;"></i>Your information is private and will never be shared.
+          </p>
+        </div>
+      </div>
+
+      <!-- Success state -->
+      <div id="contactSuccess" style="display:none;text-align:center;padding:20px;">
+        <div style="width:72px;height:72px;background:#f0fdf4;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+          <i class="fas fa-check-circle" style="color:#059669;font-size:32px;"></i>
+        </div>
+        <h3 style="font-family:'Playfair Display',serif;font-size:22px;color:var(--navy);margin-bottom:8px;">Message Sent!</h3>
+        <p style="color:#64748b;font-size:14px;line-height:1.7;margin-bottom:20px;">Thank you for reaching out. We've received your message and will contact you within <strong>24 hours</strong>.</p>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;margin-bottom:20px;">
+          <div style="font-size:13px;font-weight:700;color:#065f46;margin-bottom:4px;">What happens next?</div>
+          <div style="font-size:12px;color:#059669;line-height:1.7;">Our team will review your message and reach out via mobile or email within 24 hours. For urgent matters, call us directly at <strong>+91 8431356927</strong>.</div>
+        </div>
+        <button class="btn btn-navy" onclick="go('home')" style="font-size:14px;">
+          <i class="fas fa-home"></i>Back to Home
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ ROLE SELECTION ═══════════════ -->
+<div id="page-roleselect" class="page">
+  <div style="min-height:calc(100vh - 60px);display:flex;align-items:center;justify-content:center;padding:32px 20px;background:linear-gradient(135deg,#1B3A7A,#102550);">
+    <div style="max-width:760px;width:100%;">
+      <div style="text-align:center;margin-bottom:40px;">
+        <div style="font-family:'Playfair Display',serif;font-size:clamp(26px,5vw,40px);color:#fff;font-weight:700;margin-bottom:10px;">Who are you?</div>
+        <p style="color:#93c5fd;font-size:15px;">Select your role to continue to the right portal</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;" id="roleSelectGrid">
+
+        <!-- CITIZEN -->
+        <div onclick="go('login')" style="background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.15);border-radius:20px;padding:32px 20px;text-align:center;cursor:pointer;transition:.2s;" onmouseover="this.style.background='rgba(255,255,255,.14)';this.style.borderColor='var(--orange)';this.style.transform='translateY(-4px)'" onmouseout="this.style.background='rgba(255,255,255,.07)';this.style.borderColor='rgba(255,255,255,.15)';this.style.transform='translateY(0)'">
+          <div style="width:72px;height:72px;background:rgba(249,115,22,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">
+            <i class="fas fa-user" style="color:var(--orange);font-size:30px;"></i>
+          </div>
+          <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#fff;margin-bottom:8px;">Citizen</div>
+          <p style="color:#93c5fd;font-size:13px;line-height:1.6;margin-bottom:16px;">Submit proposals, track projects, download data</p>
+          <div style="background:var(--orange);color:#fff;font-weight:700;font-size:13px;padding:10px 20px;border-radius:10px;display:inline-block;">Sign In →</div>
+        </div>
+
+        <!-- CONTRACTOR -->
+        <div onclick="window.location.href='/contractor.html'" style="background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.15);border-radius:20px;padding:32px 20px;text-align:center;cursor:pointer;transition:.2s;" onmouseover="this.style.background='rgba(255,255,255,.14)';this.style.borderColor='#60a5fa';this.style.transform='translateY(-4px)'" onmouseout="this.style.background='rgba(255,255,255,.07)';this.style.borderColor='rgba(255,255,255,.15)';this.style.transform='translateY(0)'">
+          <div style="width:72px;height:72px;background:rgba(96,165,250,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">
+            <i class="fas fa-hard-hat" style="color:#60a5fa;font-size:30px;"></i>
+          </div>
+          <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#fff;margin-bottom:8px;">Contractor</div>
+          <p style="color:#93c5fd;font-size:13px;line-height:1.6;margin-bottom:16px;">Bid on projects, submit PPTs, update progress</p>
+          <div style="background:#60a5fa;color:#1e3a5f;font-weight:700;font-size:13px;padding:10px 20px;border-radius:10px;display:inline-block;">Open Portal →</div>
+        </div>
+
+        <!-- INVESTOR -->
+        <div onclick="window.location.href='/investor.html'" style="background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.15);border-radius:20px;padding:32px 20px;text-align:center;cursor:pointer;transition:.2s;" onmouseover="this.style.background='rgba(255,255,255,.14)';this.style.borderColor='#34d399';this.style.transform='translateY(-4px)'" onmouseout="this.style.background='rgba(255,255,255,.07)';this.style.borderColor='rgba(255,255,255,.15)';this.style.transform='translateY(0)'">
+          <div style="width:72px;height:72px;background:rgba(52,211,153,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">
+            <i class="fas fa-coins" style="color:#34d399;font-size:30px;"></i>
+          </div>
+          <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#fff;margin-bottom:8px;">Investor / CSR</div>
+          <p style="color:#93c5fd;font-size:13px;line-height:1.6;margin-bottom:16px;">Fund projects, review PPTs, track investments</p>
+          <div style="background:#34d399;color:#064e3b;font-weight:700;font-size:13px;padding:10px 20px;border-radius:10px;display:inline-block;">Open Portal →</div>
+        </div>
+
+      </div>
+      <div style="text-align:center;margin-top:28px;">
+        <span onclick="go('home')" style="color:rgba(255,255,255,.4);font-size:13px;cursor:pointer;">← Back to Home</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Supported by (small partner logos strip) -->
+<div class="supporters-strip" id="supportersStrip" style="display:none;">
+  <div class="supporters-strip-inner">
+    <span class="supporters-label">Supported by</span>
+    <div id="supportersLogos" style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;justify-content:center;"></div>
+  </div>
+</div>
+
+<footer style="background:var(--navy);padding:28px 20px;margin-top:0;">
+  <div style="max-width:1000px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="width:32px;height:32px;background:rgba(255,255,255,.1);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-family:serif;">P</div>
+      <div>
+        <div style="font-family:'Playfair Display',serif;color:#fff;font-weight:700;font-size:15px;">Public Project</div>
+        <div style="font-size:10px;color:#93c5fd;">publicproject.in · An Indian Startup</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
+      <span onclick="go('feed')" style="color:#93c5fd;font-size:12px;cursor:pointer;">Projects</span>
+      <span onclick="go('partners')" style="color:#93c5fd;font-size:12px;cursor:pointer;">Partners</span>
+      <span onclick="go('transparency')" style="color:#93c5fd;font-size:12px;cursor:pointer;">Transparency</span>
+      <span onclick="go('legal')" style="color:#93c5fd;font-size:12px;cursor:pointer;">Terms</span>
+      <span onclick="go('contact')" style="color:#93c5fd;font-size:12px;cursor:pointer;">Contact Us</span>
+      <span style="color:#64748b;font-size:12px;">© 2026 Public Project · An Indian Startup</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ═══════════════ JAVASCRIPT ═══════════════ -->
+<script>
+// ── CONFIG ──────────────────────────────────────
+const CFG = {
+  TF_KEY:   '16b15d5e-22ff-11ed-9c12-0200cd936042',
+};
+
+// ── STATE ────────────────────────────────────────
+let USER = null;
+let OTP  = null;
+let SUData = null;
+let suRole = 'CITIZEN';
+let suPlan = 'free';
+let aiText = '';
+
+// ── SEED DATA ────────────────────────────────────
+const SEED = [
+  {id:'P1',title:'Mahagaon Rural Road Development',description:'Construction of 12km all-weather road connecting Mahagaon village to NH-48, benefiting 4,200 residents. Currently unpaved — dangerous during monsoon.',category:'Roads & Bridges',status:'IN_PROGRESS',submittedBy:'Ramesh Kumar',district:'Ballari',pincode:'583119',budget:25000000,timeline:'12 months',priority:'HIGH',pct:45,createdAt:'2024-01-15',mediaUrl:'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80'},
+  {id:'P2',title:'Ballabhi Solar Power System',description:'500kW community solar installation providing clean energy to 800 households across 3 villages in Tumkur district.',category:'Renewable Energy',status:'FUNDING_PHASE',submittedBy:'Savitri Devi',district:'Tumkur',pincode:'572201',budget:66000000,timeline:'8 months',priority:'MEDIUM',pct:20,createdAt:'2024-02-01',mediaUrl:'https://images.unsplash.com/photo-1509391366360-2e959784a276?w=600&q=80'},
+  {id:'P3',title:'Hombala Drinking Water Supply',description:'Piped water network covering 6 gram panchayats — 18,000 beneficiaries. Jal Jeevan Mission aligned project.',category:'Water Supply',status:'IN_PROGRESS',submittedBy:'Anjali Patil',district:'Kolar',pincode:'563130',budget:53000000,timeline:'10 months',priority:'CRITICAL',pct:70,createdAt:'2024-01-20',mediaUrl:'https://images.unsplash.com/photo-1532094349884-543559c6c3f8?w=600&q=80'},
+  {id:'P4',title:'Chitradurga Drainage System',description:'Stormwater drainage modernisation for 14 wards — addressing seasonal flooding affecting 30,000 residents.',category:'Drainage',status:'OPEN_FOR_PROPOSAL',submittedBy:'Mohan Rao',district:'Chitradurga',pincode:'577501',budget:18000000,timeline:'6 months',priority:'HIGH',pct:0,createdAt:'2024-02-15',mediaUrl:'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=600&q=80'},
+  {id:'P5',title:'Primary School Renovation – Yadgir',description:'Complete renovation of 3 government primary schools including new classrooms, toilets, drinking water, and solar power.',category:'Education',status:'CITIZEN_SUBMITTED',submittedBy:'Lakshmi B',district:'Yadgir',pincode:'585201',budget:8500000,timeline:'5 months',priority:'HIGH',pct:0,createdAt:'2024-03-01',mediaUrl:'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=600&q=80'},
+  {id:'P6',title:'Smart Grid Upgrade – Mysuru',description:'Modernising city electrical grid with smart meters and automated load balancing to eliminate blackouts in 6 talukas.',category:'Renewable Energy',status:'COMPLETED',submittedBy:'Cit-10',district:'Mysuru',pincode:'570001',budget:210000000,timeline:'18 months',priority:'MEDIUM',pct:100,createdAt:'2023-08-15',mediaUrl:'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=600&q=80'},
+];
+
+// ── STORAGE ──────────────────────────────────────
+// ── HYBRID STORAGE (Firestore + localStorage fallback) ──
+let _projectsCache = null;
+let _usersCache = null;
+let _firebaseReady = false;
+
+// Seed ads (first banner). Only applied if the 'ads' collection is empty in Firestore.
+const SEED_ADS = [
+  {
+    title: 'Namma Choice',
+    imageUrl: 'data:image/jpeg;base64,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sxbJlSlG0gapPO29TbVNF8W+ob6yGQy6qiNJjeh51/hn7g30C1q9uKfuqHOz4DdKON3r25dShvqGcM7uku+d00vQQyssK/zRnt48D2Mpc7TuovpZUVryXCnU3XO+hvqbgquAABzkfduj2fOukLLNKX7DcbtHrhngg3SIKSbqjus/MUeZYlnAnEBKhdBk1Z+ewKdGczz3gOS07fTgOtO45r2BpzzdBzoGvHc7xq2uMMwa9g17AY5DTuBq2jHIGvYMMwYZjVtDTnm6DnQNeO53gc6ABqwkOx17DnWOQwzAHcfMzgOg5pxkJR1bSMgdYZnMcgB3zTvdjo25AOS1thHW2OsMznQdAAAoq7o+c9PDI3QtquQjyKR545k1+TbWr3rY1jY14m5oxjKS0yIT05Wc+i/VtKrsIeq0sgFdgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADnei0218vdU70MnQw/fPm9gZxla6+03tw09qttgkgx7aDW0bdDFHfnF9dtnnvo9VeFhfXnsKbAdAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAic91kbTRzc+Jqvz26ssvI0zJmOVtoS6A1bXFQl444xntbbC4hbLjdHXtKbgdAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8q7VOHLaevia6KSb7FnGz38/hDvTOYzj3oNFbJ51Et5nO0tttU2BXYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/8QAAv/aAAwDAQACAAMAAAAh88888888888888888888888888888888888888888888888888888888888888888888888888xuju9888888888888888888888888888888888888888888888888888888888888vA+888888888888888888888888888888888888888888888888888888888888/u7rN8888888888888888888888888888888888888888888888888888888888887Ad8F/wBvPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPD3n/ffPvPPPPPPMP8AvnznXzf/AN828w51413851888+517/8AOtPMcvONvOMv+svvPPPLF9fOPPOvPPPPfPw3qaud0dV2dPya/Vd6Zf8AndHXzjFampXwH2JYlapSJy31I33zzzw7bzzX7/33ylYT35IEqr6bnZcQVUKv0hsPb/6bnbzobzypHKKpbysKpQpbz4HLbzzzwffz/wCpW8088298+DuIqFTBZXVORIr9byjd/FTBZ8tX08qGNi5X8vGqUCf88SNf8887I98F8r88+xix984AshoadoadUjZtvk2uN91adoa98ixGKU8B9OhiVqWtaB9Ry9888tGICSCDTzQBBF93se8u/s88c/f/AH7fr3b3/wD+zzxzzzx571/y7y137z93x13z/wBf8888xKOLBJDFOBNd288888888888888888888888888888888888888888888888888888ue081Ovctc7if888888888888888888888888888888888888888888888888888888JY0d88+bwdf88888888888888888888888888888888888888888888888888888888NQULPzFP888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888/8QAAv/aAAwDAQACAAMAAAAQ88888888888888888888888888888888888888888888888888888888888888888888888888wGxv8AfPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPKRRb/ADzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzi8jgjzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzgg95z/AG88888888888888888888888888888888888888888888888888888888888vQev+/d8888889y3848y28z0/8AMu89t/sv/MtvPPPcdvPPOfPMstPN/MPu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',
+    linkUrl: 'https://nammachoice.com',
+    caption: '',
+    placement: 'home',
+    active: true,
+  },
+  {
+    title: 'Baduku Rangabhoomi',
+    imageUrl: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%201040%20120%22%20preserveAspectRatio%3D%22xMidYMid%20meet%22%3E%0A%3Crect%20width%3D%221040%22%20height%3D%22120%22%20fill%3D%22%23fef3c7%22/%3E%0A%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2210%22%20height%3D%22120%22%20fill%3D%22%23c2410c%22/%3E%0A%3Ccircle%20cx%3D%22110%22%20cy%3D%2260%22%20r%3D%2238%22%20fill%3D%22%23c2410c%22/%3E%0A%3Ctext%20x%3D%22110%22%20y%3D%2268%22%20font-family%3D%22serif%22%20font-size%3D%2232%22%20font-weight%3D%22bold%22%20fill%3D%22%23fef3c7%22%20text-anchor%3D%22middle%22%3E%E0%B2%AC%3C/text%3E%0A%3Ctext%20x%3D%22180%22%20y%3D%2250%22%20font-family%3D%22Georgia%2C%20serif%22%20font-size%3D%2226%22%20font-weight%3D%22bold%22%20fill%3D%22%237c2d12%22%3E%E0%B2%AC%E0%B2%A6%E0%B3%81%E0%B2%95%E0%B3%81%20%E0%B2%B0%E0%B2%82%E0%B2%97%E0%B2%AD%E0%B3%82%E0%B2%AE%E0%B2%BF%3C/text%3E%0A%3Ctext%20x%3D%22180%22%20y%3D%2274%22%20font-family%3D%22Arial%22%20font-size%3D%2214%22%20fill%3D%22%239a3412%22%3EKannada%20Poetry%20by%20%E0%B2%AE%E0%B2%A8%E0%B2%83%20%E0%B2%A4%E0%B2%AA%E0%B2%B8%E0%B3%8D%E0%B2%B5%E0%B2%BF%20%28Manah%20Tapasvi%29%3C/text%3E%0A%3Ctext%20x%3D%22180%22%20y%3D%2294%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20fill%3D%22%23c2410c%22%20font-weight%3D%22bold%22%3EAkshara%20Nada%20Publications%20%C2%B7%20%E2%82%B9120%3C/text%3E%0A%3Ctext%20x%3D%22930%22%20y%3D%2270%22%20font-family%3D%22Arial%22%20font-size%3D%2214%22%20fill%3D%22%23c2410c%22%20font-weight%3D%22bold%22%20text-anchor%3D%22end%22%3ERead%20more%20%E2%86%92%3C/text%3E%0A%3C/svg%3E',
+    linkUrl: 'https://publicproject.in/contact',
+    caption: 'Debut Kannada poetry collection',
+    placement: 'feed',
+    active: true,
+  },
+  {
+    title: 'Founding CSR Partner CTA',
+    imageUrl: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%201040%20120%22%20preserveAspectRatio%3D%22xMidYMid%20meet%22%3E%0A%3Cdefs%3E%3ClinearGradient%20id%3D%22g3%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%220%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%231B3A7A%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23102550%22/%3E%3C/linearGradient%3E%3C/defs%3E%0A%3Crect%20width%3D%221040%22%20height%3D%22120%22%20fill%3D%22url%28%23g3%29%22/%3E%0A%3Crect%20x%3D%2240%22%20y%3D%2235%22%20width%3D%2250%22%20height%3D%2250%22%20rx%3D%2210%22%20fill%3D%22%23F97316%22/%3E%0A%3Ctext%20x%3D%2265%22%20y%3D%2270%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2230%22%20font-weight%3D%22900%22%20fill%3D%22%23fff%22%20text-anchor%3D%22middle%22%3EP%3C/text%3E%0A%3Ctext%20x%3D%22110%22%20y%3D%2252%22%20font-family%3D%22Arial%22%20font-size%3D%2211%22%20fill%3D%22%23F97316%22%20font-weight%3D%22bold%22%20letter-spacing%3D%222%22%3EBECOME%20A%20FOUNDING%20PARTNER%3C/text%3E%0A%3Ctext%20x%3D%22110%22%20y%3D%2278%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2222%22%20font-weight%3D%22bold%22%20fill%3D%22%23fff%22%3EBack%20transparent%20rural%20infrastructure%3C/text%3E%0A%3Ctext%20x%3D%22110%22%20y%3D%2298%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20fill%3D%22%2393c5fd%22%3EEarly%20CSR%20partners%20get%20permanent%20platform%20recognition%3C/text%3E%0A%3Crect%20x%3D%22870%22%20y%3D%2243%22%20width%3D%22130%22%20height%3D%2236%22%20rx%3D%228%22%20fill%3D%22%23F97316%22/%3E%0A%3Ctext%20x%3D%22935%22%20y%3D%2266%22%20font-family%3D%22Arial%22%20font-size%3D%2213%22%20font-weight%3D%22bold%22%20fill%3D%22%23fff%22%20text-anchor%3D%22middle%22%3EPartner%20with%20us%20%E2%86%92%3C/text%3E%0A%3C/svg%3E',
+    linkUrl: 'https://publicproject.in/contact',
+    caption: '',
+    placement: 'all',
+    active: true,
+  },
+  {
+    title: 'Demo: Jal Sakhi Foundation',
+    imageUrl: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%201040%20120%22%20preserveAspectRatio%3D%22xMidYMid%20meet%22%3E%0A%3Crect%20width%3D%221040%22%20height%3D%22120%22%20fill%3D%22%23ecfdf5%22/%3E%0A%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2210%22%20height%3D%22120%22%20fill%3D%22%23059669%22/%3E%0A%3Ccircle%20cx%3D%2290%22%20cy%3D%2260%22%20r%3D%2232%22%20fill%3D%22%23059669%22/%3E%0A%3Ctext%20x%3D%2290%22%20y%3D%2270%22%20font-family%3D%22Arial%22%20font-size%3D%2228%22%20font-weight%3D%22bold%22%20fill%3D%22%23fff%22%20text-anchor%3D%22middle%22%3E%E2%9C%93%3C/text%3E%0A%3Ctext%20x%3D%22150%22%20y%3D%2250%22%20font-family%3D%22Arial%22%20font-size%3D%2211%22%20fill%3D%22%23059669%22%20font-weight%3D%22bold%22%20letter-spacing%3D%222%22%3EDEMO%20PARTNER%20%C2%B7%20WATER%20%26amp%3B%20SANITATION%3C/text%3E%0A%3Ctext%20x%3D%22150%22%20y%3D%2278%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2222%22%20font-weight%3D%22bold%22%20fill%3D%22%23065f46%22%3EJal%20Sakhi%20Foundation%20%28demo%29%3C/text%3E%0A%3Ctext%20x%3D%22150%22%20y%3D%2298%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20fill%3D%22%23047857%22%3EFunding%20clean%20water%20projects%20across%20Karnataka%3C/text%3E%0A%3C/svg%3E',
+    linkUrl: 'https://publicproject.in/contact',
+    caption: 'Water & sanitation partnerships',
+    placement: 'partners',
+    active: true,
+  },
+  {
+    title: 'Demo: BharatStack Labs',
+    imageUrl: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%201040%20120%22%20preserveAspectRatio%3D%22xMidYMid%20meet%22%3E%0A%3Crect%20width%3D%221040%22%20height%3D%22120%22%20fill%3D%22%23eef2ff%22/%3E%0A%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2210%22%20height%3D%22120%22%20fill%3D%22%234f46e5%22/%3E%0A%3Crect%20x%3D%2250%22%20y%3D%2240%22%20width%3D%2260%22%20height%3D%2240%22%20rx%3D%226%22%20fill%3D%22%234f46e5%22/%3E%0A%3Ctext%20x%3D%2280%22%20y%3D%2267%22%20font-family%3D%22Arial%22%20font-size%3D%2218%22%20font-weight%3D%22bold%22%20fill%3D%22%23fff%22%20text-anchor%3D%22middle%22%3E%26lt%3B/%26gt%3B%3C/text%3E%0A%3Ctext%20x%3D%22135%22%20y%3D%2250%22%20font-family%3D%22Arial%22%20font-size%3D%2211%22%20fill%3D%22%234f46e5%22%20font-weight%3D%22bold%22%20letter-spacing%3D%222%22%3EDEMO%20PARTNER%20%C2%B7%20CIVIC%20TECH%3C/text%3E%0A%3Ctext%20x%3D%22135%22%20y%3D%2278%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2222%22%20font-weight%3D%22bold%22%20fill%3D%22%23312e81%22%3EBharatStack%20Labs%20%28demo%29%3C/text%3E%0A%3Ctext%20x%3D%22135%22%20y%3D%2298%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20fill%3D%22%234338ca%22%3EOpen-source%20tools%20for%20rural%20governance%3C/text%3E%0A%3C/svg%3E',
+    linkUrl: 'https://publicproject.in/contact',
+    caption: 'Civic-tech partnership',
+    placement: 'partners',
+    active: true,
+  },
+  {
+    title: 'Choicesphere OPC',
+    imageUrl: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20300%2080%22%20preserveAspectRatio%3D%22xMidYMid%20meet%22%3E%0A%3Ccircle%20cx%3D%2240%22%20cy%3D%2240%22%20r%3D%2224%22%20fill%3D%22none%22%20stroke%3D%22%231B3A7A%22%20stroke-width%3D%224%22/%3E%0A%3Ccircle%20cx%3D%2240%22%20cy%3D%2240%22%20r%3D%2210%22%20fill%3D%22%23F97316%22/%3E%0A%3Ctext%20x%3D%2278%22%20y%3D%2246%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2222%22%20font-weight%3D%22bold%22%20fill%3D%22%231B3A7A%22%3EChoicesphere%3C/text%3E%0A%3Ctext%20x%3D%2278%22%20y%3D%2262%22%20font-family%3D%22Arial%22%20font-size%3D%2210%22%20fill%3D%22%2364748b%22%20letter-spacing%3D%222%22%3EOPC%20PRIVATE%20LIMITED%3C/text%3E%0A%3C/svg%3E',
+    linkUrl: 'https://publicproject.in',
+    caption: 'Parent company',
+    placement: 'footer',
+    active: true,
+  },
+];
+
+window.addEventListener('firebaseReady', async ()=>{
+  _firebaseReady = true;
+  // Seed Firestore if empty
+  if(window.DB) await window.DB.seedIfEmpty(SEED);
+  if(window.DB) await window.DB.seedAdsIfEmpty(SEED_ADS);
+  // Reload projects from Firestore
+  const fbProjects = await window.DB.getProjects();
+  if(fbProjects){ _projectsCache = fbProjects; localStorage.setItem('pp_proj',JSON.stringify(fbProjects)); }
+  // Re-render current page
+  const activePage = document.querySelector('.page.active')?.id?.replace('page-','');
+  if(activePage==='feed') renderFeed();
+  if(activePage==='transparency') renderTransparency();
+  if(activePage==='admin') renderAdmin();
+  if(activePage==='ceo') renderCEO();
+  console.log('Firestore sync complete');
+});
+
+function getProjects(){
+  if(_projectsCache) return _projectsCache;
+  const s=localStorage.getItem('pp_proj');
+  if(s){ _projectsCache=JSON.parse(s); return _projectsCache; }
+  _projectsCache=[...SEED];
+  localStorage.setItem('pp_proj',JSON.stringify(_projectsCache));
+  return _projectsCache;
+}
+
+function saveProjects(p){
+  _projectsCache=p;
+  localStorage.setItem('pp_proj',JSON.stringify(p));
+  // Async sync to Firestore
+  if(_firebaseReady && window.DB){
+    p.forEach(proj=>window.DB.saveProject(proj).catch(()=>{}));
+  }
+}
+
+function getUsers(){
+  if(_usersCache) return _usersCache;
+  const s=localStorage.getItem('pp_users');
+  _usersCache = s?JSON.parse(s):[];
+  return _usersCache;
+}
+
+function saveUsers(u){
+  _usersCache=u;
+  localStorage.setItem('pp_users',JSON.stringify(u));
+  if(_firebaseReady && window.DB){
+    u.forEach(user=>window.DB.saveUser(user).catch(()=>{}));
+  }
+}
+
+function getLog(){ const s=localStorage.getItem('pp_log'); return s?JSON.parse(s):[]; }
+
+function log(action,detail){
+  const entry={action,detail,user:USER?.name||'System',time:new Date().toISOString(),ts:Date.now()};
+  const l=getLog();
+  l.unshift(entry);
+  localStorage.setItem('pp_log',JSON.stringify(l.slice(0,100)));
+  if(_firebaseReady && window.DB) window.DB.addLog(entry).catch(()=>{});
+}
+
+// ── STATUS HELPERS ───────────────────────────────
+const STATUS_LABEL = {CITIZEN_SUBMITTED:'Submitted',OPEN_FOR_PROPOSAL:'Open for Bids',PROPOSAL_UNDER_REVIEW:'Under Review',FUNDING_PHASE:'Funding Phase',IN_PROGRESS:'In Progress',COMPLETED:'Completed',REJECTED:'Rejected'};
+const STATUS_CLASS = {CITIZEN_SUBMITTED:'submitted',OPEN_FOR_PROPOSAL:'open',PROPOSAL_UNDER_REVIEW:'review',FUNDING_PHASE:'funding',IN_PROGRESS:'progress',COMPLETED:'completed',REJECTED:'rejected'};
+function badge(status){ return `<span class="badge badge-${STATUS_CLASS[status]||'open'}">${STATUS_LABEL[status]||status}</span>`; }
+function money(n){ if(!n)return'—'; if(n>=10000000)return'₹'+(n/10000000).toFixed(1)+'Cr'; if(n>=100000)return'₹'+(n/100000).toFixed(1)+'L'; return'₹'+n.toLocaleString('en-IN'); }
+
+// ── NAVIGATION ───────────────────────────────────
+function go(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const pg = document.getElementById('page-'+id);
+  if(pg){ pg.classList.add('active'); window.scrollTo(0,0); }
+  if(id==='feed') renderFeed();
+  if(id==='nearby') searchNearby();
+  if(id==='transparency') renderTransparency();
+  if(id==='citizen') renderCitizen();
+  if(id==='contractor') renderContractor();
+  if(id==='investor') renderInvestor();
+  if(id==='admin') renderAdmin();
+  if(id==='ceo') renderCEO();
+  if(id==='home' || id==='feed' || id==='partners') loadAdBanners();
+}
+
+function openDashboard(){
+  if(!USER){go('login');return;}
+  // Admin/CEO → admin panel
+  if(USER.role==='ADMIN'||USER.role==='SUPER_ADMIN'){
+    toast('Please use the admin panel','error');
+    logout();
+    return;
+  }
+  // Contractor → contractor portal
+  if(USER.role==='CONTRACTOR'){
+    sessionStorage.setItem('pp_redirect_mobile', USER.mobile);
+    sessionStorage.setItem('pp_redirect_role', 'CONTRACTOR');
+    toast('Redirecting to Contractor Portal...');
+    setTimeout(()=>{ window.location.href='/contractor.html'; }, 800);
+    return;
+  }
+  // Investor → investor portal
+  if(USER.role==='INVESTOR'){
+    sessionStorage.setItem('pp_redirect_mobile', USER.mobile);
+    sessionStorage.setItem('pp_redirect_role', 'INVESTOR');
+    toast('Redirecting to Investor Portal...');
+    setTimeout(()=>{ window.location.href='/investor.html'; }, 800);
+    return;
+  }
+  // Citizen → stay on main site
+  go('citizen');
+}
+
+// ── AUTH ─────────────────────────────────────────
+async function sendOTP(mobile){
+  const otp = String(Math.floor(100000+Math.random()*900000));
+  OTP = otp;
+  try{
+    const url=`https://2factor.in/API/V1/${CFG.TF_KEY}/SMS/${mobile}/${otp}/AUTOGEN2`;
+    const r=await fetch(url);
+    const d=await r.json();
+    if(d.Status==='Success'){ toast('OTP sent to +91'+mobile); return true; }
+  }catch(e){}
+  // SMS failed - show error
+  toast('SMS service unavailable. Check your connection.','error');
+  return true;
+}
+
+function makeOTPBoxes(containerId){
+  const c=document.getElementById(containerId);
+  c.innerHTML='';
+  for(let i=0;i<6;i++){
+    const inp=document.createElement('input');
+    inp.className='otp-input';
+    inp.maxLength=1;
+    inp.inputMode='numeric';
+    inp.addEventListener('input',function(){
+      if(this.value&&i<5) c.children[i+1].focus();
+    });
+    inp.addEventListener('keydown',function(e){
+      if(e.key==='Backspace'&&!this.value&&i>0) c.children[i-1].focus();
+    });
+    c.appendChild(inp);
+  }
+  setTimeout(()=>c.children[0]?.focus(),100);
+}
+
+function getOTP(cid){ return Array.from(document.getElementById(cid).children).map(i=>i.value).join(''); }
+
+// LOGIN
+async function sendLoginOTP(){
+  const m=document.getElementById('loginMobile').value.trim();
+  if(m.length!==10){toast('Enter valid 10-digit number','error');return;}
+
+  // Contractor → redirect to contractor login page directly
+  if(_loginRole==='CONTRACTOR'){
+    sessionStorage.setItem('pp_redirect_mobile', m);
+    sessionStorage.setItem('pp_redirect_role', 'CONTRACTOR');
+    toast('Redirecting to Contractor Portal...','info');
+    setTimeout(()=>{ window.location.href='/contractor.html'; }, 800);
+    return;
+  }
+
+  // Investor → redirect to investor login page directly
+  if(_loginRole==='INVESTOR'){
+    sessionStorage.setItem('pp_redirect_mobile', m);
+    sessionStorage.setItem('pp_redirect_role', 'INVESTOR');
+    toast('Redirecting to Investor Portal...','info');
+    setTimeout(()=>{ window.location.href='/investor.html'; }, 800);
+    return;
+  }
+
+  // Citizen → OTP on main site
+  const btn=document.getElementById('loginOTPBtn');
+  btn.innerHTML='<span class="spinner"></span> Sending...';
+  btn.disabled=true;
+  await sendOTP(m);
+  btn.innerHTML='<i class="fas fa-mobile-alt"></i>Send OTP';
+  btn.disabled=false;
+  document.getElementById('loginMobileShow').textContent=m;
+  document.getElementById('loginStep1').style.display='none';
+  document.getElementById('loginStep2').style.display='block';
+  makeOTPBoxes('loginOtpBoxes');
+}
+
+async function verifyLoginOTP(){
+  const entered=getOTP('loginOtpBoxes');
+  if(entered.length<6){toast('Enter all 6 digits','error');return;}
+  if(entered!==OTP){toast('Incorrect OTP','error');return;}
+  const mobile=document.getElementById('loginMobile').value.trim();
+  const btn=document.getElementById('verifyLoginBtn');
+  btn.innerHTML='<span class="spinner"></span> Signing in...';
+  btn.disabled=true;
+  // Look up user from Firestore/localStorage — role comes from saved data
+  let u=null;
+  if(_firebaseReady && window.DB){ u=await window.DB.getUser(mobile); }
+  if(!u){ const users=getUsers(); u=users.find(x=>x.mobile===mobile); }
+  // Block admin/CEO from public site
+  if(u && (u.role==='ADMIN'||u.role==='SUPER_ADMIN')){
+    btn.innerHTML='<i class="fas fa-check-circle"></i>Verify & Sign In';
+    btn.disabled=false;
+    toast('Admin access is restricted. Use the admin panel.','error');
+    return;
+  }
+  if(!u){
+    btn.innerHTML='<i class="fas fa-check-circle"></i>Verify & Sign In';
+    btn.disabled=false;
+    toast('Account not found. Please sign up first.','error');
+    go('signup');
+    return;
+  }
+  // If user selected CONTRACTOR but account is CITIZEN (or vice versa) — warn
+  if(u.role !== _loginRole && _loginRole !== 'CITIZEN'){
+    toast(`Your account is registered as ${u.role}. Redirecting to correct portal...`,'info');
+  }
+  btn.innerHTML='<i class="fas fa-check-circle"></i>Verify & Sign In';
+  btn.disabled=false;
+  setUser(u);
+  log('LOGIN',`${u.name} (${u.role}) signed in`);
+  toast('Welcome back, '+u.name+'!');
+  resetLogin();
+  openDashboard();
+}
+
+function resendOTP(ctx){
+  const m = ctx==='login' ? document.getElementById('loginMobile').value : document.getElementById('su_mobile').value;
+  sendOTP(m);
+}
+let _loginRole = 'CITIZEN';
+function setLoginRole(role, el){
+  _loginRole = role;
+  const icons={CITIZEN:'fa-user',CONTRACTOR:'fa-hard-hat',INVESTOR:'fa-coins'};
+  const colors={CITIZEN:'var(--navy)',CONTRACTOR:'var(--orange)',INVESTOR:'var(--green)'};
+  const bgs={CITIZEN:'#eff6ff',CONTRACTOR:'#fff7ed',INVESTOR:'#f0fdf4'};
+  const borders={CITIZEN:'#bfdbfe',CONTRACTOR:'#fed7aa',INVESTOR:'#bbf7d0'};
+  const labels={CITIZEN:'Signing in as Citizen',CONTRACTOR:'Contractor → Opens Contractor Portal',INVESTOR:'Investor → Opens Investor Portal'};
+  // Left panel cards
+  ['CITIZEN','CONTRACTOR','INVESTOR'].forEach(r=>{
+    const c=document.getElementById('lrc_'+r);
+    const ck=document.getElementById('lrc_check_'+r);
+    if(c){ c.style.background=r===role?'rgba(255,255,255,.12)':'transparent'; c.style.borderColor=r===role?'rgba(249,115,22,.5)':'rgba(255,255,255,.1)'; c.querySelector('i').style.color=r===role?'var(--orange)':'#94a3b8'; c.querySelectorAll('div')[0].style.color=r===role?'#fff':'#cbd5e1'; }
+    if(ck) ck.style.display=r===role?'block':'none';
+  });
+  // Mobile chips
+  ['CITIZEN','CONTRACTOR','INVESTOR'].forEach(r=>{
+    const m=document.getElementById('lrm_'+r);
+    if(m){ m.classList.toggle('active',r===role); const ic=m.querySelector('i'); const dv=m.querySelector('div'); if(ic) ic.style.color=r===role?'var(--navy)':'#64748b'; if(dv) dv.style.color=r===role?'var(--navy)':'#64748b'; }
+  });
+  // Role bar
+  const bar=document.getElementById('loginRoleBar');
+  const barIcon=document.getElementById('loginRoleBarIcon');
+  const barText=document.getElementById('loginRoleBarText');
+  if(bar){ bar.style.background=bgs[role]; bar.style.borderColor=borders[role]; }
+  if(barIcon){ barIcon.className='fas '+icons[role]; barIcon.style.color=colors[role]; }
+  if(barText){ barText.textContent=labels[role]; barText.style.color=colors[role]; }
+  // Change send OTP button color
+  const btn=document.getElementById('loginOTPBtn');
+  if(btn){ btn.style.background=colors[role]; }
+}
+
+function resetLogin(){
+  document.getElementById('loginStep1').style.display='';
+  document.getElementById('loginStep2').style.display='none';
+  document.getElementById('loginMobile').value='';
+}
+
+
+// SIGNUP
+function selectRole(role,el){
+  suRole=role;
+  ['CITIZEN','CONTRACTOR','INVESTOR'].forEach(r=>{
+    const chip=document.getElementById('rc_'+r);
+    if(chip){ chip.classList.remove('active'); chip.querySelector('i').style.color='#64748b'; chip.querySelector('div').style.color='#64748b'; }
+  });
+  el.classList.add('active');
+  el.querySelector('i').style.color='var(--navy)';
+  el.querySelector('div').style.color='var(--navy)';
+  // Show password field for contractor/investor
+  const passWrap = document.getElementById('su_pass_wrap');
+  if(passWrap) passWrap.style.display = (role==='CONTRACTOR'||role==='INVESTOR') ? 'block' : 'none';
+  // Show/hide doc upload section for contractor/investor
+  const docSection = document.getElementById('docUploadSection');
+  if(docSection) renderDocUpload(role);
+}
+
+function selectPlan(plan,el){
+  suPlan=plan;
+  const pf=document.getElementById('plan_free');
+  const pp=document.getElementById('plan_premium');
+  if(pf) pf.classList.remove('active');
+  if(pp) pp.classList.remove('active');
+  if(el) el.classList.add('active');
+}
+
+async function handleSignup(){
+  const name=document.getElementById('su_name').value.trim();
+  const mobile=document.getElementById('su_mobile').value.trim();
+  const email=document.getElementById('su_email').value.trim();
+  const pincode=document.getElementById('su_pincode').value.trim();
+  if(!name){toast('Enter your name','error');return;}
+  if(mobile.length!==10){toast('Enter valid 10-digit mobile','error');return;}
+  if(!email||!email.includes('@')){toast('Enter valid email','error');return;}
+  // Password required for contractor/investor
+  if((suRole==='CONTRACTOR'||suRole==='INVESTOR')){
+    const pw=document.getElementById('su_password')?.value?.trim()||'';
+    if(pw.length<8){toast('Password must be at least 8 characters','error');return;}
+  }
+  if(pincode.length!==6){toast('Enter valid 6-digit pincode','error');return;}
+  if(!document.getElementById('su_terms').checked){toast('Accept Terms & Conditions','error');return;}
+  // Validate required docs for Contractor/Investor
+  if(suRole==='CONTRACTOR'||suRole==='INVESTOR'){
+    const required = DOC_TYPES[suRole].filter(d=>d.required).map(d=>d.id);
+    const missing = required.filter(id=>!uploadedDocs[id]);
+    if(missing.length>0){ toast('Please upload all required documents','error'); return; }
+  }
+  SUData={name,mobile,email,pincode,role:suRole,plan:suPlan};
+  const btn=document.getElementById('signupBtn');
+  btn.innerHTML='<span class="spinner"></span> Sending OTP...';
+  btn.disabled=true;
+  await sendOTP(mobile);
+  btn.innerHTML='<i class="fas fa-user-plus"></i>Create Account & Get OTP';
+  btn.disabled=false;
+  document.getElementById('su_mobileShow').textContent=mobile;
+  document.getElementById('signupStep1').style.display='none';
+  document.getElementById('signupStep2').style.display='block';
+  makeOTPBoxes('signupOtpBoxes');
+}
+
+function verifySignupOTP(){
+  const entered=getOTP('signupOtpBoxes');
+  if(entered.length<6){toast('Enter all 6 digits','error');return;}
+  if(entered!==OTP){toast('Incorrect OTP','error');return;}
+  completeRegistration(true); // All users get full access during launch
+}
+
+function completeRegistration(isPremium){
+  if(!SUData)return;
+  isPremium = true; // Free premium for all during launch
+  const password = document.getElementById('su_password')?.value?.trim() || '';
+  const u={id:'u_'+Date.now(),...SUData,isPremium,password:password||undefined,isApproved:SUData.role==='CITIZEN',kycStatus:SUData.role==='CITIZEN'?'verified':'pending',createdAt:new Date().toISOString()};
+  const users=getUsers(); users.push(u); saveUsers(users);
+  setUser(u);
+  log('SIGNUP',`${u.name} registered as ${u.role}${isPremium?' (Premium)':''}`);
+  toast('Welcome to Public Project, '+u.name+'! 🎉');
+  resetSignup();
+  openDashboard();
+}
+
+function resetSignup(){
+  ['signupStep1','signupStep2','signupStep3'].forEach(id=>{ const el=document.getElementById(id); if(el){el.style.display=id==='signupStep1'?'block':'none';} });
+  SUData=null;
+}
+
+function setUser(u){
+  USER=u;
+  localStorage.setItem('pp_session',JSON.stringify(u));
+  document.getElementById('navGuest').style.display='none';
+  document.getElementById('navUser').style.display='flex';
+  document.getElementById('navAvatar').textContent=u.name.charAt(0).toUpperCase();
+  document.getElementById('navName').textContent=u.name;
+  document.getElementById('navRoleLabel').textContent=u.role;
+  // Save/update user in Firestore
+  if(_firebaseReady && window.DB) window.DB.saveUser(u).catch(()=>{});
+}
+
+function logout(){
+  USER=null;
+  localStorage.removeItem('pp_session');
+  document.getElementById('navGuest').style.display='flex';
+  document.getElementById('navUser').style.display='none';
+  go('home');
+  toast('Signed out');
+}
+
+// ── PAYMENTS (coming soon) ───────────────────────
+function startPremiumPayment(){ toast('Payments coming soon!','info'); }
+function activatePremium(){ toast('All features are free during launch!','info'); }
+function openUpgradeModal(){ toast('All features are free during launch — enjoy! 🎉','info'); }
+
+// ── HOME ─────────────────────────────────────────
+function renderHome(){
+  const steps=[
+    {n:1,icon:'fa-user',label:'Submit',desc:'Citizen uploads proposal with photo & location'},
+    {n:2,icon:'fa-check-circle',label:'Validate',desc:'Admin reviews & approves the proposal'},
+    {n:3,icon:'fa-hard-hat',label:'Bid',desc:'Contractors submit execution proposals'},
+    {n:4,icon:'fa-coins',label:'Fund',desc:'Investors & CSR entities fund the project'},
+    {n:5,icon:'fa-chart-line',label:'Track',desc:'All stakeholders monitor progress live'},
+  ];
+  const sg=document.getElementById('stepsGrid');
+  if(sg) sg.innerHTML=steps.map(s=>`
+    <div style="background:#fff;border:1px solid #e8e6e0;border-radius:14px;padding:20px 14px;text-align:center;">
+      <div style="width:44px;height:44px;background:#eff6ff;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;">
+        <i class="fas ${s.icon}" style="color:var(--navy);font-size:18px;"></i>
+      </div>
+      <div style="font-size:11px;font-weight:800;color:var(--orange);margin-bottom:4px;">${s.n}</div>
+      <div style="font-weight:700;color:var(--navy);font-size:14px;margin-bottom:6px;">${s.label}</div>
+      <div style="font-size:12px;color:#64748b;line-height:1.5;">${s.desc}</div>
+    </div>`).join('');
+
+  const roles=[
+    {icon:'fa-user',color:'#1B3A7A',bg:'#eff6ff',title:'Citizens',desc:'Submit proposals for your village, vote on priorities, track progress live.'},
+    {icon:'fa-hard-hat',color:'#F97316',bg:'#fff7ed',title:'Contractors',desc:'Get notified of validated tenders, submit bids, update milestones.'},
+    {icon:'fa-coins',color:'#059669',bg:'#f0fdf4',title:'Investors & CSR',desc:'Fund verified projects as MLA/MP, CSR mandate, or ROI investor.'},
+  ];
+  const rg=document.getElementById('rolesGrid');
+  if(rg) rg.innerHTML=roles.map(r=>`
+    <div style="background:#fff;border:1px solid #e8e6e0;border-radius:16px;padding:28px 24px;">
+      <div style="width:52px;height:52px;background:${r.bg};border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+        <i class="fas ${r.icon}" style="color:${r.color};font-size:22px;"></i>
+      </div>
+      <div style="font-weight:700;color:var(--navy);font-size:16px;margin-bottom:8px;">${r.title}</div>
+      <div style="font-size:13px;color:#64748b;line-height:1.6;">${r.desc}</div>
+    </div>`).join('');
+
+
+}
+
+// ── FEED ─────────────────────────────────────────
+function renderFeed(){
+  const projects=getProjects();
+  const search=(document.getElementById('filterSearch')?.value||'').toLowerCase();
+  const status=document.getElementById('filterStatus')?.value||'';
+  const filtered=projects.filter(p=>(!status||p.status===status)&&(!search||p.title.toLowerCase().includes(search)||p.district?.toLowerCase().includes(search)||p.category?.toLowerCase().includes(search)));
+  const grid=document.getElementById('feedGrid');
+  if(!grid)return;
+  if(!filtered.length){grid.innerHTML='<div class="empty" style="grid-column:1/-1;"><i class="fas fa-inbox"></i><p>No projects found. Try clearing the filters.</p></div>';return;}
+  grid.innerHTML=filtered.map(p=>`
+    <div class="project-card" onclick="openProject('${p.id}')">
+      ${p.mediaUrl?`<img src="${p.mediaUrl}" style="width:100%;height:160px;object-fit:cover;" loading="lazy" onerror="this.style.display='none'">` :'<div style="height:80px;background:linear-gradient(135deg,#eff6ff,#dbeafe);display:flex;align-items:center;justify-content:center;"><i class="fas fa-project-diagram" style="color:#93c5fd;font-size:28px;"></i></div>'}
+      <div style="padding:16px;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;">
+          <div style="font-size:11px;font-weight:700;color:#64748b;">${p.category}</div>
+          ${badge(p.status)}
+        </div>
+        <div style="font-weight:700;color:var(--navy);font-size:15px;margin-bottom:6px;line-height:1.3;">${p.title}</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:12px;"><i class="fas fa-map-marker-alt" style="color:var(--orange);margin-right:4px;"></i>${p.district||'Karnataka'}</div>
+        ${p.pct>0?`<div class="progress-bar" style="margin-bottom:6px;"><div class="progress-fill" style="width:${p.pct}%;"></div></div>`:''}
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b;">
+          <span>${p.pct}% complete</span>
+          <span style="font-weight:700;color:var(--navy);">${money(p.budget)}</span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function openProject(id){
+  const p=getProjects().find(x=>x.id===id);
+  if(!p)return;
+  const canAI=!!USER; // All logged-in users get AI summary during launch
+  document.getElementById('projectModalContent').innerHTML=`
+    ${p.mediaUrl?`<img src="${p.mediaUrl}" style="width:100%;height:200px;object-fit:cover;border-radius:12px;margin-bottom:16px;" onerror="this.style.display='none'">` :''}
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${badge(p.status)}<span style="background:#f1f5f9;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;color:#64748b;">${p.category}</span>${p.priority?`<span style="background:#fff7ed;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;color:#c2410c;">${p.priority}</span>`:''}</div>
+    <h2 style="font-family:'Playfair Display',serif;font-size:21px;color:var(--navy);margin-bottom:8px;line-height:1.3;">${p.title}</h2>
+    <div style="font-size:13px;color:#64748b;margin-bottom:14px;"><i class="fas fa-map-marker-alt" style="color:var(--orange);margin-right:4px;"></i>${p.district}, Karnataka${p.pincode?' – '+p.pincode:''}</div>
+    <p style="font-size:14px;color:#475569;line-height:1.7;margin-bottom:18px;">${p.description}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+      <div style="background:#f8f7f4;border-radius:10px;padding:12px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:4px;">BUDGET</div><div style="font-weight:800;color:var(--navy);font-size:16px;">${money(p.budget)}</div></div>
+      <div style="background:#f8f7f4;border-radius:10px;padding:12px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:4px;">TIMELINE</div><div style="font-weight:800;color:var(--navy);font-size:16px;">${p.timeline||'TBD'}</div></div>
+    </div>
+    ${p.pct>0?`<div style="margin-bottom:16px;"><div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;">PROGRESS — ${p.pct}%</div><div class="progress-bar"><div class="progress-fill" style="width:${p.pct}%;"></div></div></div>`:''}
+    <div style="font-size:12px;color:#94a3b8;margin-bottom:18px;">Submitted by <strong>${p.submittedBy}</strong> · ${p.createdAt}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      ${USER?`<button class="btn btn-navy btn-sm" onclick="getAI('${p.id}')"><i class="fas fa-robot"></i>AI Summary</button>`:`<button class="btn btn-ghost btn-sm" onclick="closeModal('modalProject');go('signup')"><i class="fas fa-robot"></i>AI Summary (Sign Up Free)</button>`}
+      ${USER?.role==='CONTRACTOR'&&['CITIZEN_SUBMITTED','OPEN_FOR_PROPOSAL'].includes(p.status)?`<button class="btn btn-orange btn-sm" onclick="closeModal('modalProject');openBid('${p.id}')"><i class="fas fa-hard-hat"></i>Submit Bid</button>`:''}
+      ${USER?.role==='INVESTOR'&&p.status==='FUNDING_PHASE'?`<button class="btn btn-orange btn-sm" onclick="expressInterest('${p.id}')"><i class="fas fa-coins"></i>Fund This Project</button>`:''}
+    </div>`;
+  openModal('modalProject');
+}
+
+// ── NEARBY ───────────────────────────────────────
+function searchNearby(){
+  const pin=document.getElementById('nearbyPincode')?.value.trim()||'';
+  const projects=getProjects();
+  const res=pin?projects.filter(p=>p.pincode?.startsWith(pin.substring(0,4))):projects;
+  const el=document.getElementById('nearbyResults');
+  if(!el)return;
+  if(!res.length){el.innerHTML='<div class="empty"><i class="fas fa-map-marker-alt"></i><p>No projects found near this pincode.</p></div>';return;}
+  el.innerHTML=res.map(p=>`
+    <div class="card-sm" style="padding:16px;margin-bottom:10px;cursor:pointer;transition:.15s;" onclick="openProject('${p.id}')" onmouseover="this.style.background='#f8f7f4'" onmouseout="this.style.background='#fff'">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="font-weight:700;color:var(--navy);font-size:14px;">${p.title}</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;"><i class="fas fa-map-marker-alt" style="color:var(--orange);margin-right:4px;"></i>${p.district} · ${p.pincode||''} · ${p.category}</div>
+        </div>
+        ${badge(p.status)}
+      </div>
+      ${p.pct>0?`<div class="progress-bar" style="margin-top:10px;"><div class="progress-fill" style="width:${p.pct}%;"></div></div><div style="font-size:11px;color:#64748b;margin-top:4px;">${p.pct}% complete</div>`:''}
+    </div>`).join('');
+}
+
+// ── TRANSPARENCY ─────────────────────────────────
+function renderTransparency(){
+  const projects=getProjects();
+  const total=projects.length;
+  const inProgress=projects.filter(p=>p.status==='IN_PROGRESS').length;
+  const completed=projects.filter(p=>p.status==='COMPLETED').length;
+  const totalBudget=projects.reduce((s,p)=>s+(p.budget||0),0);
+  document.getElementById('transparencyStats').innerHTML=[
+    {label:'Total Projects',value:total,icon:'fa-project-diagram',color:'#1B3A7A'},
+    {label:'In Progress',value:inProgress,icon:'fa-hard-hat',color:'#059669'},
+    {label:'Completed',value:completed,icon:'fa-check-circle',color:'#F97316'},
+    {label:'Total Budget',value:money(totalBudget),icon:'fa-rupee-sign',color:'#7c3aed'},
+  ].map(s=>`<div class="stat-card"><i class="fas ${s.icon}" style="font-size:20px;color:${s.color};display:block;margin-bottom:8px;"></i><div class="stat-num" style="color:${s.color};">${s.value}</div><div class="stat-label">${s.label}</div></div>`).join('');
+  document.getElementById('transparencyList').innerHTML=projects.map(p=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;gap:8px;" onclick="openProject('${p.id}')" style="cursor:pointer;">
+      <div style="flex:1;min-width:180px;cursor:pointer;">
+        <div style="font-weight:600;font-size:13px;color:var(--navy);">${p.title}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${p.district} · ${p.category} · ${p.createdAt}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:13px;font-weight:700;color:#475569;">${money(p.budget)}</span>
+        ${badge(p.status)}
+      </div>
+    </div>`).join('');
+}
+
+// ── CITIZEN DASHBOARD ────────────────────────────
+function renderCitizen(){
+  if(!USER)return;
+  const welcome=document.getElementById('citizenWelcome');
+  if(welcome) welcome.textContent='Welcome, '+USER.name;
+  // All users get full access during launch - no premium banner needed
+  renderMyProposals();
+  renderDownloads();
+}
+
+function renderMyProposals(){
+  const projects=getProjects();
+  const mine=projects.filter(p=>p.submittedBy===USER?.name||p.submittedById===USER?.id);
+  const el=document.getElementById('citizenProposals');
+  if(!el)return;
+  if(!mine.length){
+    el.innerHTML=`<div class="empty"><i class="fas fa-inbox"></i><p>No proposals yet.</p><button class="btn btn-orange" onclick="go('submit')"><i class="fas fa-plus"></i>Submit First Proposal</button></div>`;return;
+  }
+  el.innerHTML=mine.map(p=>`
+    <div class="card-sm" style="padding:16px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+        <div style="font-weight:700;color:var(--navy);font-size:14px;">${p.title}</div>
+        ${badge(p.status)}
+      </div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:8px;">${p.category} · ${p.district}</div>
+      ${p.pct>0?`<div class="progress-bar"><div class="progress-fill" style="width:${p.pct}%;"></div></div><div style="font-size:11px;color:#64748b;margin-top:4px;">${p.pct}% complete</div>`:''}
+    </div>`).join('');
+}
+
+function renderDownloads(){
+  const isPro=true; // All free during launch
+  const items=[
+    {title:'My Area Projects (CSV)',desc:'All projects — status, budget, timeline',free:true,icon:'fa-file-csv',fn:'dlCSV()'},
+    {title:'AI Project Summaries',desc:'Auto-generated status reports per project',free:false,icon:'fa-robot',fn:'dlAI()'},
+    {title:'Contractor Progress Report',desc:'Milestone updates from active contractors',free:false,icon:'fa-hard-hat',fn:'dlContractor()'},
+    {title:'Financial Audit Trail',desc:'Full budget & fund flow data (investor level)',free:false,icon:'fa-file-invoice',fn:'toast("Full financial data — investor access required","info")'},
+  ];
+  document.getElementById('citizenDownloads').innerHTML=items.map(item=>`
+    <div class="card-sm" style="padding:16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">
+      <div style="width:42px;height:42px;background:#eff6ff;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas ${item.icon}" style="color:var(--navy);font-size:16px;"></i></div>
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:13px;color:var(--navy);">${item.title}${!item.free?` <span style="font-size:10px;background:#fff7ed;color:#c2410c;padding:2px 6px;border-radius:99px;font-weight:700;">PREMIUM</span>`:''}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${item.desc}</div>
+      </div>
+      <button class="btn btn-navy btn-sm" onclick="${item.fn}"><i class="fas fa-download"></i>Download</button>
+    </div>`).join('');
+}
+
+function citizenTab(tab,btn){
+  document.querySelectorAll('#page-citizen .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('citizenProposals').style.display=tab==='proposals'?'block':'none';
+  document.getElementById('citizenDownloads').style.display=tab==='downloads'?'block':'none';
+}
+
+function dlCSV(){
+  const rows=[['ID','Title','Category','District','Status','Progress%','Budget','Date']];
+  getProjects().forEach(p=>rows.push([p.id,p.title,p.category,p.district||'',p.status,p.pct||0,p.budget||0,p.createdAt]));
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  dlBlob(csv,'PublicProject_Data.csv','text/csv');
+  toast('CSV downloaded');
+}
+function dlContractor(){
+  const text=getProjects().filter(p=>['IN_PROGRESS','COMPLETED'].includes(p.status)).map(p=>`PROJECT: ${p.title}\nDistrict: ${p.district}\nProgress: ${p.pct||0}%\nBudget: ${money(p.budget||0)}\n${'─'.repeat(40)}`).join('\n\n');
+  dlBlob(`PUBLIC PROJECT — CONTRACTOR REPORT\n${new Date().toLocaleString()}\n\n${text}`,'ContractorReport.txt','text/plain');
+  toast('Report downloaded');
+}
+function dlAI(){ toast('Select a project → click AI Summary to generate & download','info'); }
+function dlBlob(content,name,type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type}));
+  a.download=name; a.click();
+}
+
+// ── SUBMIT PROPOSAL ──────────────────────────────
+function submitProposal(){
+  if(!USER){go('login');return;}
+  const title=document.getElementById('p_title').value.trim();
+  const desc=document.getElementById('p_desc').value.trim();
+  const dist=document.getElementById('p_dist').value.trim();
+  const pin=document.getElementById('p_pin').value.trim();
+  if(!title||!desc||!dist){toast('Fill all required fields','error');return;}
+  const p={id:'P'+Date.now(),title,description:desc,category:document.getElementById('p_cat').value,status:'CITIZEN_SUBMITTED',submittedBy:USER.name,submittedById:USER.id,district:dist,pincode:pin,priority:document.getElementById('p_priority').value,mediaUrl:mediaDataUrl||'',pct:0,budget:null,timeline:null,createdAt:new Date().toISOString().split('T')[0]};
+  const projects=getProjects(); projects.push(p); saveProjects(projects);
+  // Also save to Firestore with auto-ID
+  if(_firebaseReady && window.DB){ window.DB.addProject(p).catch(()=>{}); }
+  log('PROPOSAL_SUBMITTED',`"${title}" by ${USER.name}`);
+  toast('Proposal submitted! Admin will review shortly.');
+  ['p_title','p_desc','p_dist','p_pin'].forEach(id=>{ const el=document.getElementById(id); if(el)el.value=''; });
+  clearMedia();
+  openDashboard();
+}
+
+// ── CONTRACTOR ───────────────────────────────────
+function renderContractor(){
+  const projects=getProjects();
+  const open=projects.filter(p=>['CITIZEN_SUBMITTED','OPEN_FOR_PROPOSAL'].includes(p.status));
+  const active=projects.filter(p=>['PROPOSAL_UNDER_REVIEW','FUNDING_PHASE','IN_PROGRESS'].includes(p.status));
+  document.getElementById('cOpen').innerHTML=open.length?open.map(p=>`
+    <div class="card-sm" style="padding:16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div style="flex:1;">
+        <div style="font-weight:700;color:var(--navy);font-size:14px;">${p.title}</div>
+        <div style="font-size:12px;color:#64748b;margin-top:2px;"><i class="fas fa-map-marker-alt" style="color:var(--orange);margin-right:4px;"></i>${p.district} · ${p.category}</div>
+        ${p.budget?`<div style="font-size:12px;font-weight:700;color:var(--navy);margin-top:4px;">Est. ${money(p.budget)}</div>`:''}
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="openProject('${p.id}')"><i class="fas fa-eye"></i>View</button>
+        <button class="btn btn-navy btn-sm" onclick="openBid('${p.id}')"><i class="fas fa-hard-hat"></i>Bid</button>
+      </div>
+    </div>`).join('')
+    :`<div class="empty"><i class="fas fa-inbox"></i><p>No open proposals right now. Check back soon.</p></div>`;
+
+  document.getElementById('cActive').innerHTML=active.length?active.map(p=>`
+    <div class="card-sm" style="padding:16px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+        <div style="font-weight:700;color:var(--navy);font-size:14px;">${p.title}</div>
+        ${badge(p.status)}
+      </div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:8px;">${money(p.budget)} · ${p.timeline||'TBD'}</div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${p.pct||0}%;"></div></div>
+      <div style="font-size:11px;color:#64748b;margin-top:4px;">${p.pct||0}% complete</div>
+    </div>`).join('')
+    :`<div class="empty"><i class="fas fa-hard-hat"></i><p>No active projects yet. Submit a bid to get started.</p></div>`;
+
+  document.getElementById('cProfile').innerHTML=`
+    <div class="card" style="padding:24px;max-width:500px;">
+      <h3 style="font-weight:700;color:var(--navy);margin-bottom:16px;">Contractor Profile</h3>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div><label class="field-label">COMPANY / NAME</label><input class="form-input" value="${USER?.name||''}" readonly></div>
+        <div><label class="field-label">MOBILE</label><input class="form-input" value="+91 ${USER?.mobile||''}" readonly></div>
+        <div><label class="field-label">KYC STATUS</label><input class="form-input" value="${USER?.kycStatus||'pending'}" readonly style="color:${USER?.kycStatus==='verified'?'#059669':'#c2410c'}"></div>
+        <div><label class="field-label">EXPERIENCE (years)</label><input class="form-input" placeholder="Enter years of experience"></div>
+        <div><label class="field-label">PORTFOLIO / WEBSITE</label><input class="form-input" placeholder="https://..."></div>
+        <button class="btn btn-navy" style="align-self:flex-start;"><i class="fas fa-save"></i>Save Profile</button>
+      </div>
+    </div>`;
+}
+
+function contractorTab(tab,btn){
+  document.querySelectorAll('#page-contractor .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('cOpen').style.display=tab==='open'?'block':'none';
+  document.getElementById('cActive').style.display=tab==='active'?'block':'none';
+  document.getElementById('cProfile').style.display=tab==='profile'?'block':'none';
+}
+
+function openBid(id){
+  document.getElementById('bidProjId').value=id;
+  ['bidBudget','bidTimeline','bidPlan'].forEach(i=>{ const el=document.getElementById(i); if(el)el.value=''; });
+  openModal('modalBid');
+}
+
+function submitBid(){
+  const id=document.getElementById('bidProjId').value;
+  const budget=document.getElementById('bidBudget').value;
+  const timeline=document.getElementById('bidTimeline').value;
+  const plan=document.getElementById('bidPlan').value;
+  if(!budget||!timeline||!plan){toast('Fill all bid details','error');return;}
+  const projects=getProjects();
+  const idx=projects.findIndex(p=>p.id===id);
+  if(idx>-1){
+    projects[idx].status='PROPOSAL_UNDER_REVIEW';
+    projects[idx].budget=parseInt(budget);
+    projects[idx].timeline=timeline;
+    projects[idx].contractorId=USER?.id;
+    saveProjects(projects);
+    log('BID_SUBMITTED',`${USER?.name} bid on "${projects[idx].title}"`);
+  }
+  closeModal('modalBid');
+  toast('Bid submitted! Admin will review and notify investors.');
+  renderContractor();
+}
+
+// ── INVESTOR ─────────────────────────────────────
+function renderInvestor(){
+  const projects=getProjects();
+  const opps=projects.filter(p=>['FUNDING_PHASE','PROPOSAL_UNDER_REVIEW'].includes(p.status));
+  const funded=projects.filter(p=>['IN_PROGRESS','COMPLETED'].includes(p.status));
+
+  document.getElementById('iOpps').innerHTML=opps.length?opps.map(p=>`
+    <div class="card-sm" style="padding:20px;margin-bottom:12px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <div style="font-weight:700;color:var(--navy);font-size:15px;margin-bottom:4px;">${p.title}</div>
+          <div style="font-size:12px;color:#64748b;"><i class="fas fa-map-marker-alt" style="color:var(--orange);margin-right:4px;"></i>${p.district} · ${p.category}</div>
+        </div>
+        ${badge(p.status)}
+      </div>
+      <p style="font-size:13px;color:#475569;line-height:1.6;margin-bottom:14px;">${p.description.substring(0,160)}${p.description.length>160?'...':''}</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div style="font-weight:800;color:var(--navy);font-size:16px;">${money(p.budget)}<span style="font-size:12px;font-weight:400;color:#64748b;margin-left:4px;">· ${p.timeline||'TBD'}</span></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="openProject('${p.id}')"><i class="fas fa-eye"></i>Details</button>
+          <button class="btn btn-orange btn-sm" onclick="expressInterest('${p.id}')"><i class="fas fa-coins"></i>Express Interest</button>
+        </div>
+      </div>
+    </div>`).join('')
+    :`<div class="empty"><i class="fas fa-search"></i><p>No funding opportunities right now. Projects move here after contractor bids are approved.</p></div>`;
+
+  document.getElementById('iPortfolio').innerHTML=funded.length?funded.map(p=>`
+    <div class="card-sm" style="padding:16px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+        <div style="font-weight:700;color:var(--navy);font-size:14px;">${p.title}</div>
+        ${badge(p.status)}
+      </div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:8px;">${money(p.budget)} · ${p.district}</div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${p.pct||0}%;"></div></div>
+      <div style="font-size:11px;color:#64748b;margin-top:4px;">${p.pct||0}% complete</div>
+    </div>`).join('')
+    :`<div class="empty"><i class="fas fa-briefcase"></i><p>No funded projects yet.</p></div>`;
+
+  document.getElementById('iReports').innerHTML=`
+    <div class="card" style="padding:24px;max-width:500px;">
+      <h3 style="font-weight:700;color:var(--navy);margin-bottom:16px;">Download Investment Reports</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div class="card-sm" style="padding:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div><div style="font-weight:700;font-size:13px;">Full Project Database (CSV)</div><div style="font-size:11px;color:#94a3b8;">All projects with financials</div></div>
+          <button class="btn btn-navy btn-sm" onclick="dlCSV()"><i class="fas fa-download"></i>CSV</button>
+        </div>
+        <div class="card-sm" style="padding:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div><div style="font-weight:700;font-size:13px;">Due Diligence Report</div><div style="font-size:11px;color:#94a3b8;">Contractor background + milestones</div></div>
+          <button class="btn btn-navy btn-sm" onclick="dlContractor()"><i class="fas fa-download"></i>Download</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function investorTab(tab,btn){
+  document.querySelectorAll('#page-investor .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('iOpps').style.display=tab==='opps'?'block':'none';
+  document.getElementById('iPortfolio').style.display=tab==='portfolio'?'block':'none';
+  document.getElementById('iReports').style.display=tab==='reports'?'block':'none';
+}
+
+function expressInterest(id){
+  const projects=getProjects();
+  const p=projects.find(x=>x.id===id);
+  if(p){ log('INVESTOR_INTEREST',`${USER?.name} expressed interest in "${p.title}"`); }
+  closeModal('modalProject');
+  toast('Interest registered! Contractor will contact you via platform.');
+}
+
+// ── ADMIN ────────────────────────────────────────
+async function renderAdmin(){
+  const projects=getProjects();
+  let users=getUsers();
+  if(_firebaseReady && window.DB){
+    const fbUsers=await window.DB.getAllUsers();
+    if(fbUsers.length){ users=fbUsers; _usersCache=fbUsers; }
+  }
+  const pending=projects.filter(p=>p.status==='CITIZEN_SUBMITTED');
+  const kyc=users.filter(u=>u.kycStatus==='pending');
+
+  document.getElementById('pendingCount').textContent=pending.length||'';
+  document.getElementById('adminStats').innerHTML=[
+    {label:'Pending Proposals',value:pending.length,icon:'fa-clock',color:'#F97316'},
+    {label:'Total Projects',value:projects.length,icon:'fa-project-diagram',color:'var(--navy)'},
+    {label:'Completed',value:projects.filter(p=>p.status==='COMPLETED').length,icon:'fa-check-circle',color:'#059669'},
+    {label:'Pending KYC',value:kyc.length,icon:'fa-user-clock',color:'#7c3aed'},
+  ].map(s=>`<div class="stat-card"><i class="fas ${s.icon}" style="font-size:18px;color:${s.color};display:block;margin-bottom:8px;"></i><div class="stat-num" style="color:${s.color};">${s.value}</div><div class="stat-label">${s.label}</div></div>`).join('');
+
+  document.getElementById('aPending').innerHTML=pending.length?pending.map(p=>`
+    <div class="card-sm" style="padding:18px;margin-bottom:12px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+        <div>
+          <div style="font-weight:700;color:var(--navy);font-size:14px;">${p.title}</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;">${p.category} · ${p.district} · Submitted by <strong>${p.submittedBy}</strong></div>
+        </div>
+        ${badge(p.status)}
+      </div>
+      <p style="font-size:13px;color:#475569;line-height:1.6;margin-bottom:14px;">${p.description.substring(0,200)}${p.description.length>200?'...':''}</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button class="btn btn-navy btn-sm" onclick="adminApprove('${p.id}','OPEN_FOR_PROPOSAL')"><i class="fas fa-check"></i>Approve for Bids</button>
+        <button class="btn btn-navy btn-sm" onclick="adminApprove('${p.id}','FUNDING_PHASE')"><i class="fas fa-coins"></i>Move to Funding</button>
+        <button class="btn btn-sm" onclick="adminApprove('${p.id}','REJECTED')" style="background:#fee2e2;color:#991b1b;border:none;border-radius:10px;cursor:pointer;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;gap:6px;padding:7px 14px;"><i class="fas fa-times"></i>Reject</button>
+      </div>
+    </div>`).join('')
+    :`<div class="empty"><i class="fas fa-check-circle" style="color:#059669;"></i><p>All caught up! No pending proposals.</p></div>`;
+
+  document.getElementById('aKyc').innerHTML=kyc.length?kyc.map(u=>`
+    <div class="card-sm" style="padding:16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div style="font-weight:700;color:var(--navy);font-size:14px;">${u.name}</div>
+        <div style="font-size:12px;color:#64748b;">${u.role} · +91${u.mobile} · ${u.email||'—'}</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-navy btn-sm" onclick="approveKYC('${u.id}')"><i class="fas fa-check"></i>Approve KYC</button>
+        <button class="btn btn-sm" onclick="rejectKYC('${u.id}')" style="background:#fee2e2;color:#991b1b;border:none;border-radius:10px;cursor:pointer;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;padding:7px 14px;">Reject</button>
+      </div>
+    </div>`).join('')
+    :`<div class="empty"><i class="fas fa-user-check"></i><p>No pending KYC verifications.</p></div>`;
+
+  document.getElementById('aAll').innerHTML=projects.map(p=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;gap:8px;">
+      <div style="flex:1;min-width:160px;">
+        <div style="font-weight:600;font-size:13px;color:var(--navy);">${p.title}</div>
+        <div style="font-size:11px;color:#94a3b8;">${p.district} · ${p.category}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        ${p.status==='IN_PROGRESS'?`<div style="display:flex;align-items:center;gap:6px;"><input type="range" min="0" max="100" value="${p.pct||0}" style="width:80px;" oninput="updatePct('${p.id}',this.value)" title="Update %"><span style="font-size:11px;color:#64748b;min-width:28px;">${p.pct||0}%</span></div>`:''}
+        ${badge(p.status)}
+      </div>
+    </div>`).join('');
+}
+
+function adminTab(tab,btn){
+  document.querySelectorAll('#page-admin .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('aPending').style.display=tab==='pending'?'block':'none';
+  document.getElementById('aKyc').style.display=tab==='kyc'?'block':'none';
+  document.getElementById('aAll').style.display=tab==='all'?'block':'none';
+}
+
+function adminApprove(id,status){
+  const projects=getProjects();
+  const idx=projects.findIndex(p=>p.id===id);
+  if(idx>-1){
+    projects[idx].status=status;
+    saveProjects(projects);
+    log('ADMIN_APPROVED',`"${projects[idx].title}" → ${status}`);
+    toast(status==='REJECTED'?'Proposal rejected':'Proposal approved!');
+    renderAdmin();
+  }
+}
+
+function updatePct(id,pct){
+  const projects=getProjects();
+  const idx=projects.findIndex(p=>p.id===id);
+  if(idx>-1){
+    projects[idx].pct=parseInt(pct);
+    if(parseInt(pct)===100) projects[idx].status='COMPLETED';
+    saveProjects(projects);
+    log('PROGRESS',`"${projects[idx].title}" → ${pct}%`);
+  }
+}
+
+function approveKYC(uid){
+  const users=getUsers();
+  const idx=users.findIndex(u=>u.id===uid);
+  if(idx>-1){ users[idx].kycStatus='verified'; users[idx].isApproved=true; saveUsers(users); log('KYC_APPROVED',`${users[idx].name} approved`); toast('KYC approved!'); renderAdmin(); }
+}
+
+function rejectKYC(uid){
+  const users=getUsers();
+  const idx=users.findIndex(u=>u.id===uid);
+  if(idx>-1){ users[idx].kycStatus='rejected'; saveUsers(users); toast('KYC rejected','error'); renderAdmin(); }
+}
+
+// ── CEO ──────────────────────────────────────────
+async function renderCEO(){
+  const projects=getProjects();
+  let users=getUsers();
+  let logEntries=getLog();
+  // Load from Firestore if available
+  if(_firebaseReady && window.DB){
+    const fbUsers = await window.DB.getAllUsers();
+    if(fbUsers.length){ users=fbUsers; _usersCache=fbUsers; }
+    const fbLogs = await window.DB.getLogs();
+    if(fbLogs.length){ logEntries=fbLogs; }
+  }
+  const totalBudget=projects.reduce((s,p)=>s+(p.budget||0),0);
+  document.getElementById('ceoStats').innerHTML=[
+    {label:'Total Projects',value:projects.length,icon:'fa-project-diagram',color:'var(--navy)'},
+    {label:'Registered Users',value:users.length,icon:'fa-users',color:'#059669'},
+    {label:'Platform Budget',value:money(totalBudget),icon:'fa-rupee-sign',color:'var(--orange)'},
+    {label:'Audit Events',value:logEntries.length,icon:'fa-history',color:'#7c3aed'},
+  ].map(s=>`<div class="stat-card"><i class="fas ${s.icon}" style="font-size:18px;color:${s.color};display:block;margin-bottom:8px;"></i><div class="stat-num" style="color:${s.color};">${s.value}</div><div class="stat-label">${s.label}</div></div>`).join('');
+
+  document.getElementById('ceoAuditLog').innerHTML=logEntries.length?logEntries.slice(0,25).map(l=>`
+    <div style="padding:10px 0;border-bottom:1px solid #f1f5f9;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap;">
+        <span style="background:#eff6ff;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;color:var(--navy);white-space:nowrap;">${l.action}</span>
+        <span style="font-size:11px;color:#94a3b8;">${(l.time && l.time.seconds ? new Date(l.time.seconds*1000) : new Date(l.time||Date.now())).toLocaleString('en-IN')}</span>
+      </div>
+      <div style="font-size:12px;color:#475569;">${l.detail}</div>
+    </div>`).join('')
+    :`<div style="color:#94a3b8;font-size:13px;padding:20px 0;text-align:center;">No events yet.</div>`;
+
+  // Contact messages
+  const contacts = JSON.parse(localStorage.getItem('pp_contacts')||'[]');
+  const ceoContacts = document.getElementById('ceoContacts');
+  if(ceoContacts){
+    ceoContacts.innerHTML = contacts.length ? contacts.slice(0,10).map(c=>`
+      <div style="padding:12px;border:1px solid #e8e6e0;border-radius:10px;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+          <div style="font-weight:700;font-size:13px;color:var(--navy);">${c.name} <span style="font-size:11px;color:#94a3b8;font-weight:400;">· ${c.role}</span></div>
+          <span style="font-size:10px;background:#eff6ff;color:var(--navy);padding:2px 8px;border-radius:99px;font-weight:700;">${c.subject}</span>
+        </div>
+        <div style="font-size:12px;color:#475569;margin-bottom:6px;">${c.message}</div>
+        <div style="font-size:11px;color:#94a3b8;"><i class="fas fa-phone" style="margin-right:4px;"></i>+91${c.mobile}${c.email?' · '+c.email:''} · ${new Date(c.createdAt).toLocaleDateString('en-IN')}</div>
+      </div>`).join('')
+    : '<div style="color:#94a3b8;font-size:13px;text-align:center;padding:20px;">No contact messages yet.</div>';
+  }
+
+  document.getElementById('ceoUsers').innerHTML=users.length?users.slice(0,10).map(u=>`
+    <div style="padding:8px 0;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;gap:6px;">
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--navy);">${u.name}</div>
+        <div style="font-size:11px;color:#94a3b8;">${u.role} · ${u.kycStatus||'—'}</div>
+      </div>
+      <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:${u.kycStatus==='verified'?'#f0fdf4':'#fff7ed'};color:${u.kycStatus==='verified'?'#166534':'#c2410c'};">${u.kycStatus||'pending'}</span>
+    </div>`).join('')
+    :`<div style="color:#94a3b8;font-size:13px;padding:20px 0;text-align:center;">No registered users yet.</div>`;
+}
+
+// ── AI SUMMARY ───────────────────────────────────
+async function getAI(id){
+  const p=getProjects().find(x=>x.id===id);
+  if(!p)return;
+  closeModal('modalProject');
+  document.getElementById('aiContent').innerHTML='<div style="display:flex;align-items:center;gap:10px;color:#64748b;"><span class="spinner" style="border-color:#e2e8f0;border-top-color:var(--navy);"></span> Generating AI analysis...</div>';
+  document.getElementById('aiActions').innerHTML='';
+  openModal('modalAI');
+  // Generate local summary (Claude API needs backend proxy for security)
+  aiText=localSummary(p);
+  setTimeout(()=>{
+    document.getElementById('aiContent').innerHTML=`<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;color:#c2410c;"><i class="fas fa-info-circle" style="margin-right:4px;"></i>Auto-generated summary. Connect AI API for full Claude analysis.</div><pre style="white-space:pre-wrap;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;line-height:1.7;">${aiText}</pre>`;
+    document.getElementById('aiActions').innerHTML=`<button class="btn btn-navy btn-sm" onclick="dlBlob(aiText,'AI_Summary_${p.id}.txt','text/plain');toast('Downloaded')"><i class="fas fa-download"></i>Download Summary</button>`;
+  },800);
+}
+
+function localSummary(p){
+  const statusMap={CITIZEN_SUBMITTED:'This project has been submitted by a citizen and is pending admin review.',OPEN_FOR_PROPOSAL:'This project is validated and open for contractor bids.',PROPOSAL_UNDER_REVIEW:'Contractor proposals are being reviewed by platform admins.',FUNDING_PHASE:'This project is approved and actively seeking CSR/investor funding.',IN_PROGRESS:`Work is underway — ${p.pct||0}% complete.`,COMPLETED:'This project has been successfully completed.',REJECTED:'This project was not approved.'};
+  return `AI PROJECT SUMMARY — PUBLIC PROJECT PLATFORM
+${'═'.repeat(50)}
+Title:    ${p.title}
+Category: ${p.category}
+Location: ${p.district}, Karnataka${p.pincode?' ('+p.pincode+')':''}
+Priority: ${p.priority||'Medium'}
+Date:     ${p.createdAt}
+
+STATUS
+${'─'.repeat(30)}
+${statusMap[p.status]||p.status}
+
+PROJECT OVERVIEW
+${'─'.repeat(30)}
+${p.description}
+
+FINANCIALS
+${'─'.repeat(30)}
+Budget:   ${money(p.budget)||'Not specified'}
+Timeline: ${p.timeline||'TBD'}
+Progress: ${p.pct||0}% complete
+
+IMPACT ESTIMATE
+${'─'.repeat(30)}
+This ${p.category} project in ${p.district} district targets rural infrastructure improvement. ${p.priority==='CRITICAL'?'This is a CRITICAL priority project requiring immediate attention.':p.priority==='HIGH'?'This is a HIGH priority project.':'This project has medium-to-low urgency.'}
+
+Submitted by: ${p.submittedBy}
+Platform: publicproject.in | Contact: choicesphere07@gmail.com | +91 8431356927`;
+}
+
+// ── MODAL HELPERS ────────────────────────────────
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+document.addEventListener('click',function(e){
+  document.querySelectorAll('.modal.open').forEach(m=>{ if(e.target===m) m.classList.remove('open'); });
+});
+
+// ── TOAST ────────────────────────────────────────
+function toast(msg,type='success'){
+  const t=document.getElementById('toast');
+  document.getElementById('toastMsg').textContent=msg;
+  const icon=document.getElementById('toastIcon');
+  icon.className='fas '+(type==='error'?'fa-exclamation-circle':type==='info'?'fa-info-circle':'fa-check-circle');
+  icon.style.color=type==='error'?'#f87171':type==='info'?'#60a5fa':'#34d399';
+  t.classList.add('show');
+  clearTimeout(t._t);
+  t._t=setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+// ── MEDIA UPLOAD ────────────────────────────────
+let mediaDataUrl = null;
+
+function handleMediaUpload(input){
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 10*1024*1024){ toast('File too large. Max 10MB','error'); return; }
+  const reader = new FileReader();
+  reader.onload = function(e){
+    mediaDataUrl = e.target.result;
+    document.getElementById('mediaPlaceholder').style.display='none';
+    document.getElementById('mediaPreview').style.display='block';
+    document.getElementById('mediaFileName').textContent = file.name + ' (' + (file.size/1024).toFixed(0) + ' KB)';
+    if(file.type.startsWith('image/')){
+      document.getElementById('mediaImg').src = mediaDataUrl;
+      document.getElementById('mediaImg').style.display='block';
+    } else {
+      document.getElementById('mediaImg').style.display='none';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearMedia(){
+  mediaDataUrl=null;
+  document.getElementById('p_mediaFile').value='';
+  document.getElementById('mediaPlaceholder').style.display='block';
+  document.getElementById('mediaPreview').style.display='none';
+}
+
+// ── DOCUMENT UPLOAD ──────────────────────────────
+const DOC_TYPES = {
+  CONTRACTOR: [
+    {id:'gst',label:'GST Certificate',icon:'fa-file-alt',required:true},
+    {id:'pan',label:'PAN Card',icon:'fa-id-card',required:true},
+    {id:'license',label:'Business / Contractor License',icon:'fa-certificate',required:true},
+    {id:'portfolio',label:'Portfolio / Past Work (optional)',icon:'fa-images',required:false},
+  ],
+  INVESTOR: [
+    {id:'cin',label:'Company CIN / PAN',icon:'fa-building',required:true},
+    {id:'csr',label:'CSR Policy / Board Resolution',icon:'fa-file-contract',required:true},
+    {id:'auth',label:'Authorisation Letter',icon:'fa-user-tie',required:false},
+  ]
+};
+let uploadedDocs = {};
+
+function renderDocUpload(role){
+  const types = DOC_TYPES[role];
+  const section = document.getElementById('docUploadSection');
+  if(!section) return;
+  if(!types){ section.style.display='none'; return; }
+  section.style.display='block';
+  uploadedDocs={};
+  const docListEl = document.getElementById('docList');
+  if(!docListEl) return;
+  docListEl.innerHTML = types.map(d=>`
+    <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px;transition:.15s;" id="docRow_${d.id}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <i class="fas ${d.icon}" style="color:var(--navy);width:16px;"></i>
+          <span style="font-size:13px;font-weight:600;color:var(--navy);">${d.label}</span>
+          ${d.required?'<span style="font-size:10px;color:#c2410c;font-weight:700;">*</span>':'<span style="font-size:10px;color:#94a3b8;">(optional)</span>'}
+        </div>
+        <div>
+          <input type="file" id="docFile_${d.id}" style="display:none;" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDoc('${d.id}','${d.label}',this)">
+          <button onclick="document.getElementById('docFile_${d.id}').click()" class="btn btn-ghost btn-sm" id="docBtn_${d.id}" style="font-size:11px;padding:5px 10px;">
+            <i class="fas fa-upload"></i>Upload
+          </button>
+        </div>
+      </div>
+      <div id="docStatus_${d.id}" style="display:none;margin-top:6px;font-size:11px;color:#059669;font-weight:600;"></div>
+    </div>`).join('');
+}
+
+function handleDoc(id, label, input){
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 5*1024*1024){ toast(label+': Max 5MB','error'); return; }
+  const allowed=['application/pdf','image/jpeg','image/jpg','image/png'];
+  if(!allowed.includes(file.type)){ toast('Only PDF, JPG, PNG allowed','error'); return; }
+  uploadedDocs[id]={name:file.name, size:file.size, type:file.type, label};
+  document.getElementById('docStatus_'+id).style.display='block';
+  document.getElementById('docStatus_'+id).innerHTML=`<i class="fas fa-check-circle" style="color:#059669;margin-right:4px;"></i>${file.name} (${(file.size/1024).toFixed(0)} KB)`;
+  document.getElementById('docBtn_'+id).innerHTML='<i class="fas fa-check"></i>Uploaded';
+  document.getElementById('docBtn_'+id).style.background='#f0fdf4';
+  document.getElementById('docBtn_'+id).style.color='#059669';
+  document.getElementById('docRow_'+id).style.borderColor='#059669';
+}
+
+// ── INIT ─────────────────────────────────────────
+// ── CONTACT FORM ─────────────────────────────────
+async function submitContact(){
+  const name    = document.getElementById('ct_name').value.trim();
+  const mobile  = document.getElementById('ct_mobile').value.trim();
+  const email   = document.getElementById('ct_email').value.trim();
+  const role    = document.getElementById('ct_role').value;
+  const subject = document.getElementById('ct_subject').value;
+  const message = document.getElementById('ct_message').value.trim();
+
+  if(!name)    { toast('Please enter your name','error'); return; }
+  if(mobile.length!==10){ toast('Enter valid 10-digit mobile','error'); return; }
+  if(!message) { toast('Please enter your message','error'); return; }
+
+  const btn = document.getElementById('contactSubmitBtn');
+  btn.innerHTML = '<span class="spinner"></span> Sending...';
+  btn.disabled = true;
+
+  const entry = { name, mobile, email, role, subject, message, status:'new', createdAt: new Date().toISOString() };
+  // Save to Firestore contacts collection + audit
+  if(_firebaseReady && window.DB){
+    await window.DB.addContact(entry);
+    await window.DB.addLog({action:'CONTACT_FORM', detail:`${name} (${role}) — ${subject}`, user:name});
+  }
+  // Also save to localStorage as backup
+  const contacts = JSON.parse(localStorage.getItem('pp_contacts')||'[]');
+  contacts.push(entry);
+  localStorage.setItem('pp_contacts', JSON.stringify(contacts));
+
+  // Show success
+  setTimeout(()=>{
+    document.getElementById('contactFormWrap').style.display = 'none';
+    document.getElementById('contactSuccess').style.display = 'block';
+    log('CONTACT', `${name} (${role}) sent: ${subject}`);
+    btn.innerHTML = '<i class="fas fa-paper-plane"></i>Send Message';
+    btn.disabled = false;
+  }, 800);
+}
+
+// ── AD BANNERS (read-only, managed from admin panel) ──
+async function loadAdBanners(){
+  let ads = [];
+  // Tier 1: Firestore (admin-managed)
+  try {
+    if(_firebaseReady && window.DB){
+      ads = await window.DB.getAds();
+    }
+  } catch(e){ console.warn('Ad load from Firestore failed', e); }
+
+  // Tier 2: localStorage cache (works offline / when Firestore rules block reads)
+  if(!ads.length){
+    try {
+      ads = (JSON.parse(localStorage.getItem('pp_ads')||'[]')).filter(a=>a.active && !a.deleted);
+    } catch(e){}
+  }
+
+  // Tier 3: Hardcoded SEED_ADS (always works — artifact preview, no Firebase, fresh install)
+  if(!ads.length && typeof SEED_ADS !== 'undefined'){
+    ads = SEED_ADS.filter(a => a.active !== false).map((a,i)=>({id:'seed_'+i,...a}));
+  }
+
+  // Banner card for home/feed
+  const bannerHTML = (a, variant) => `
+    <a class="ad-banner ad-banner-${variant}" href="${a.linkUrl}" target="_blank" rel="noopener noreferrer sponsored" onclick="logAdClick('${a.id}','${(a.title||'').replace(/'/g,'')}')">
+      <span class="ad-banner-label">Ad</span>
+      <img src="${a.imageUrl}" alt="${a.title||'Banner'}" onerror="this.parentElement.style.display='none'">
+      ${a.caption ? `<div class="ad-banner-text"><div class="t">${a.title||''}</div><div class="s">${a.caption}</div></div>` : ''}
+    </a>`;
+
+  // Partner card for partners page
+  const partnerHTML = (a) => `
+    <a class="partner-card" href="${a.linkUrl}" target="_blank" rel="noopener noreferrer" onclick="logAdClick('${a.id}','${(a.title||'').replace(/'/g,'')}')">
+      <div class="partner-card-img"><img src="${a.imageUrl}" alt="${a.title||'Partner'}" onerror="this.parentElement.innerHTML='<i class=\\'fas fa-building\\' style=\\'font-size:40px;color:#cbd5e1\\'></i>'"></div>
+      <div class="partner-card-body">
+        <span class="partner-tier ${a.tier==='founding'?'tier-founding':(a.tier==='platinum'?'tier-platinum':'tier-supporter')}">${(a.tier||'supporter').toUpperCase()}</span>
+        <div class="t">${a.title||'Partner'}</div>
+        <div class="s">${a.caption||'Supporting transparent rural infrastructure.'}</div>
+      </div>
+    </a>`;
+
+  // Small footer logo
+  const supporterHTML = (a) => `
+    <a class="supporter-logo" href="${a.linkUrl}" target="_blank" rel="noopener noreferrer" title="${a.title||''}" onclick="logAdClick('${a.id}','${(a.title||'').replace(/'/g,'')}')">
+      <img src="${a.imageUrl}" alt="${a.title||'Supporter'}" onerror="this.parentElement.style.display='none'">
+    </a>`;
+
+  const renderBanner = (el, list, variant) => {
+    if(!el) return;
+    if(!list.length){ el.innerHTML = ''; return; }
+    el.innerHTML = list.map(a => bannerHTML(a, variant)).join('');
+  };
+
+  // Home & Feed banners
+  renderBanner(
+    document.getElementById('adBannerHome'),
+    ads.filter(a => a.placement==='home' || a.placement==='all'),
+    'home'
+  );
+  renderBanner(
+    document.getElementById('adBannerFeed'),
+    ads.filter(a => a.placement==='feed' || a.placement==='all'),
+    'feed'
+  );
+
+  // Partners page grid
+  const partnersGrid = document.getElementById('partnersGrid');
+  const partnersEmpty = document.getElementById('partnersEmpty');
+  if(partnersGrid){
+    const partners = ads.filter(a => a.placement==='partners' || a.placement==='all' || a.placement==='footer');
+    if(partners.length){
+      partnersGrid.innerHTML = partners.map(partnerHTML).join('');
+      if(partnersEmpty) partnersEmpty.style.display = 'none';
+      // Update tier counts
+      const countByTier = (t) => partners.filter(p => (p.tier||'supporter')===t).length;
+      const setText = (id,v) => { const el=document.getElementById(id); if(el) el.textContent = v||'—'; };
+      setText('partnerCountFounding', countByTier('founding'));
+      setText('partnerCountCSR', partners.filter(p => (p.tier==='platinum'||!p.tier||p.tier==='supporter')).length);
+      setText('partnerCountSupport', partners.length);
+    } else {
+      partnersGrid.innerHTML = '';
+      if(partnersEmpty) partnersEmpty.style.display = 'block';
+    }
+  }
+
+  // Footer supporters strip
+  const strip = document.getElementById('supportersStrip');
+  const stripLogos = document.getElementById('supportersLogos');
+  if(stripLogos){
+    const supporters = ads.filter(a => a.placement==='footer' || a.placement==='all');
+    if(supporters.length){
+      stripLogos.innerHTML = supporters.map(supporterHTML).join('');
+      if(strip) strip.style.display = 'block';
+    } else {
+      if(strip) strip.style.display = 'none';
+    }
+  }
+}
+
+function logAdClick(id, title){
+  try{ log('AD_CLICK', `${title || id}`); }catch(e){}
+}
+
+window.addEventListener('load',function(){
+  // Restore session
+  const s=localStorage.getItem('pp_session');
+  if(s){ try{ setUser(JSON.parse(s)); }catch(e){} }
+  // Render home
+  renderHome();
+  // Load banners from localStorage cache; Firestore sync will refresh below
+  loadAdBanners();
+  // Show connection status and reload banners from Firestore once ready
+  window.addEventListener('firebaseReady',()=>{
+    console.log('Connected to Firestore database');
+    loadAdBanners();
+  });
+});
+</script>
+</body>
+</html>
