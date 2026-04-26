@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Public Project — Investor Portal</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, getDocs, setDoc, addDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+const app = initializeApp({
+  apiKey:"AIzaSyC5PjXMJR9M9Zk5FPSeybkH8UEmrFNkk7Q",
+  authDomain:"public-project-026.firebaseapp.com",
+  projectId:"public-project-026",
+  storageBucket:"public-project-026.firebasestorage.app",
+  messagingSenderId:"512588357820",
+  appId:"1:512588357820:web:30abd8434acefb6be94b3b"
+});
+const db = getFirestore(app);
+window.DB = {
+  async getProjects(){ const s=await getDocs(collection(db,'projects')); return s.docs.map(d=>({id:d.id,...d.data()})); },
+  async getUsers(){ const s=await getDocs(collection(db,'users')); return s.docs.map(d=>({id:d.id,...d.data()})); },
+  async getBids(){ try{ const s=await getDocs(collection(db,'bids')); return s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){return[];} },
+  async saveInterest(i){ await addDoc(collection(db,'interests'),{...i,time:serverTimestamp()}); },
+  async addLog(e){ await addDoc(collection(db,'audit'),{...e,time:serverTimestamp()}); }
+};
+window.dispatchEvent(new Event('firebaseReady'));
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:#F8F7F4;color:#1e293b;}
+:root{--navy:#1B3A7A;--orange:#F97316;--green:#059669;--purple:#7c3aed;}
+#lockScreen{position:fixed;inset:0;background:linear-gradient(135deg,#059669,#047857);display:flex;align-items:center;justify-content:center;z-index:999;padding:20px;}
+#portalApp{display:none;}
+.page{display:none;} .page.active{display:block;animation:fu .2s ease;}
+@keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.card{background:#fff;border:1px solid #e8e6e0;border-radius:16px;}
+.card-sm{background:#fff;border:1px solid #e8e6e0;border-radius:12px;}
+.btn{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;border:none;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px;border-radius:10px;}
+.btn-navy{background:var(--navy);color:#fff;padding:9px 18px;font-size:13px;} .btn-navy:hover{background:#102550;}
+.btn-orange{background:var(--orange);color:#fff;padding:9px 18px;font-size:13px;} .btn-orange:hover{background:#ea580c;}
+.btn-green{background:var(--green);color:#fff;padding:9px 18px;font-size:13px;} .btn-green:hover{background:#047857;}
+.btn-ghost{background:#f1f5f9;color:#475569;padding:7px 14px;font-size:12px;} .btn-ghost:hover{background:#e2e8f0;}
+.btn-sm{padding:6px 12px;font-size:12px;}
+.form-input{width:100%;border:1.5px solid #e2e8f0;border-radius:10px;padding:11px 14px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;outline:none;transition:.15s;background:#fff;}
+.form-input:focus{border-color:var(--navy);}
+label.fl{display:block;font-size:11px;font-weight:700;color:#64748b;letter-spacing:.06em;margin-bottom:5px;}
+.badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;white-space:nowrap;}
+.badge-yellow{background:#fef3c7;color:#92400e;} .badge-blue{background:#dbeafe;color:#1e40af;}
+.badge-green{background:#d1fae5;color:#065f46;} .badge-red{background:#fee2e2;color:#991b1b;}
+.badge-purple{background:#ede9fe;color:#5b21b6;} .badge-orange{background:#fff7ed;color:#c2410c;}
+.tabs{border-bottom:1px solid #e8e6e0;display:flex;margin-bottom:20px;}
+.tab-btn{padding:10px 18px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:#94a3b8;border-bottom:2px solid transparent;margin-bottom:-1px;font-family:'Plus Jakarta Sans',sans-serif;transition:.15s;}
+.tab-btn.active{color:var(--navy);border-bottom-color:var(--navy);font-weight:700;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#64748b;transition:.15s;margin:2px 6px;}
+.nav-item:hover{background:#f0fdf4;color:var(--green);}
+.nav-item.active{background:#f0fdf4;color:var(--green);}
+.progress-bar{height:5px;border-radius:99px;background:#e2e8f0;overflow:hidden;}
+.progress-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--green),#34d399);}
+.modal{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px;}
+.modal.open{display:flex;}
+.modal-box{background:#fff;border-radius:20px;width:100%;max-height:90vh;overflow-y:auto;position:relative;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.15);}
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+#toast{position:fixed;bottom:24px;right:24px;z-index:999;transform:translateY(120px);transition:.3s;}
+#toast.show{transform:translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- LOCK SCREEN -->
+<div id="lockScreen">
+  <div style="background:rgba(255,255,255,.1);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.2);border-radius:24px;padding:40px;max-width:420px;width:100%;text-align:center;">
+    <div style="width:64px;height:64px;background:rgba(255,255,255,.2);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+      <i class="fas fa-coins" style="color:#fff;font-size:28px;"></i>
+    </div>
+    <h2 style="font-family:'Playfair Display',serif;font-size:26px;color:#fff;margin-bottom:6px;">Investor Portal</h2>
+    <p style="color:rgba(255,255,255,.65);font-size:13px;margin-bottom:28px;">Public Project — Verified Investors & CSR</p>
+    <div id="ivLockStep1">
+      <label class="fl" style="text-align:left;color:rgba(255,255,255,.5);">REGISTERED MOBILE</label>
+      <div style="display:flex;gap:8px;margin-bottom:20px;">
+        <div style="background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.15);border-radius:10px;padding:10px 14px;font-weight:700;color:rgba(255,255,255,.6);font-size:14px;flex-shrink:0;">+91</div>
+        <input id="ivMobile" class="form-input" style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff;" placeholder="10-digit number" maxlength="10" type="tel" onkeypress="if(event.key==='Enter')sendInvestorOTP()">
+      </div>
+      <button class="btn btn-green" onclick="sendInvestorOTP()" id="ivOTPBtn" style="width:100%;justify-content:center;font-size:14px;padding:12px;background:#fff;color:var(--green);">
+        <i class="fas fa-mobile-alt"></i>Send OTP
+      </button>
+      <div style="margin-top:16px;font-size:12px;color:rgba(255,255,255,.4);">
+        Not registered? <a href="https://publicproject.in" style="color:#a7f3d0;">Sign up at publicproject.in</a><br>
+        <a href="https://publicproject.in" style="color:rgba(255,255,255,.4);margin-top:4px;display:inline-block;">← Back to main site</a>
+      </div>
+    </div>
+    <div id="ivLockStep2" style="display:none;">
+      <div style="background:rgba(255,255,255,.1);border-radius:12px;padding:14px;margin-bottom:20px;font-size:13px;color:rgba(255,255,255,.7);">
+        <i class="fas fa-mobile-alt" style="color:#a7f3d0;margin-right:6px;"></i>OTP sent to +91 <strong id="ivMobileShow" style="color:#fff;"></strong>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px;" id="ivOtpBoxes"></div>
+      <button class="btn" onclick="verifyInvestorOTP()" id="verifyIVBtn" style="width:100%;justify-content:center;font-size:14px;padding:12px;background:#fff;color:var(--green);font-weight:700;border-radius:10px;">
+        <i class="fas fa-unlock"></i>Enter Investor Portal
+      </button>
+      <div style="margin-top:12px;"><span onclick="resetIVLock()" style="font-size:12px;color:rgba(255,255,255,.4);cursor:pointer;">← Change number</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- INVESTOR PORTAL -->
+<div id="portalApp" style="display:flex;min-height:100vh;">
+  <!-- Sidebar -->
+  <div id="sidebar" style="width:220px;background:#fff;border-right:1px solid #e8e6e0;position:fixed;top:0;bottom:0;display:flex;flex-direction:column;z-index:50;">
+    <div style="padding:18px 14px;border-bottom:1px solid #e8e6e0;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <img src="data:image/png;base64,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" style="width:34px;height:34px;border-radius:10px;object-fit:cover;flex-shrink:0;" alt="PP">
+        <div><div style="font-weight:800;font-size:13px;color:var(--navy);">Public Project</div><div style="font-size:10px;color:#94a3b8;">Investor Portal</div></div>
+      </div>
+    </div>
+    <div style="flex:1;padding:10px 0;overflow-y:auto;">
+      <div class="nav-item active" onclick="showSec('dashboard',this)"><i class="fas fa-th-large"></i>Dashboard</div>
+      <div class="nav-item" onclick="showSec('opportunities',this)"><i class="fas fa-search"></i>Opportunities <span id="oppBadge" style="background:#f0fdf4;color:var(--green);font-size:10px;padding:1px 6px;border-radius:99px;margin-left:auto;font-weight:700;"></span></div>
+      <div class="nav-item" onclick="showSec('proposals',this)"><i class="fas fa-file-powerpoint"></i>Contractor PPTs</div>
+      <div class="nav-item" onclick="showSec('portfolio',this)"><i class="fas fa-briefcase"></i>My Portfolio</div>
+      <div class="nav-item" onclick="showSec('reports',this)"><i class="fas fa-chart-bar"></i>Reports & Data</div>
+      <div style="margin:8px 14px;border-top:1px solid #e8e6e0;padding-top:8px;">
+        <div class="nav-item" style="color:var(--navy);" onclick="emailAdmin(null)"><i class="fas fa-envelope"></i>Email Admin</div>
+        <div class="nav-item" style="color:var(--green);" onclick="callAdmin()"><i class="fas fa-phone-alt"></i>Call Admin</div>
+      </div>
+    </div>
+    <div style="padding:12px 14px;border-top:1px solid #e8e6e0;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <div id="ivAvatar" style="width:32px;height:32px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0;"></div>
+        <div><div id="ivName" style="font-size:12px;font-weight:700;color:var(--navy);line-height:1.2;"></div><div id="ivType" style="font-size:10px;color:#94a3b8;"></div></div>
+      </div>
+      <button onclick="ivLogout()" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;"><i class="fas fa-sign-out-alt"></i>Sign Out</button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div id="mainContent" style="margin-left:220px;flex:1;padding:24px;">
+
+    <!-- DASHBOARD -->
+    <div id="sec-dashboard" class="page active">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--green);letter-spacing:.1em;margin-bottom:4px;">INVESTOR DASHBOARD</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:var(--navy);" id="ivWelcome">Welcome</h1>
+      </div>
+      <div id="ivKycWarning" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:16px;margin-bottom:20px;">
+        <i class="fas fa-exclamation-triangle" style="color:var(--orange);margin-right:8px;"></i>
+        <strong style="color:#c2410c;">KYC Pending</strong> — Your account is under review. You can browse projects but cannot express formal investment interest until approved.
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;" id="ivStats"></div>
+      <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;">
+        <div class="card" style="padding:20px;">
+          <h3 style="font-weight:700;color:var(--navy);margin-bottom:14px;font-size:14px;"><i class="fas fa-fire" style="color:var(--orange);margin-right:6px;"></i>Top Funding Opportunities</h3>
+          <div id="ivDashOpps"></div>
+        </div>
+        <div class="card" style="padding:20px;">
+          <h3 style="font-weight:700;color:var(--navy);margin-bottom:14px;font-size:14px;"><i class="fas fa-chart-pie" style="color:var(--green);margin-right:6px;"></i>Portfolio Summary</h3>
+          <div id="ivDashPortfolio"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPPORTUNITIES -->
+    <div id="sec-opportunities" class="page">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--green);letter-spacing:.1em;margin-bottom:4px;">INVESTMENT OPPORTUNITIES</div>
+          <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:var(--navy);">Active Projects Seeking Funding</h1>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <select id="oppCatFilter" class="form-input" style="width:auto;font-size:13px;" onchange="renderOpportunities()">
+            <option value="">All Categories</option>
+            <option>Roads & Bridges</option><option>Water Supply</option>
+            <option>Renewable Energy</option><option>Education</option>
+            <option>Healthcare</option><option>Drainage</option><option>Other</option>
+          </select>
+          <select id="oppSortFilter" class="form-input" style="width:auto;font-size:13px;" onchange="renderOpportunities()">
+            <option value="budget">Sort: Budget (High)</option>
+            <option value="priority">Sort: Priority</option>
+            <option value="date">Sort: Newest</option>
+          </select>
+        </div>
+      </div>
+      <div id="opportunitiesList"></div>
+    </div>
+
+    <!-- CONTRACTOR PPTs -->
+    <div id="sec-proposals" class="page">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--green);letter-spacing:.1em;margin-bottom:4px;">EXECUTION PROPOSALS</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:var(--navy);">Contractor Proposals & PPTs</h1>
+        <p style="color:#64748b;font-size:13px;margin-top:4px;">Review contractor execution plans before expressing investment interest</p>
+      </div>
+      <div id="contractorPPTList"></div>
+    </div>
+
+    <!-- PORTFOLIO -->
+    <div id="sec-portfolio" class="page">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--green);letter-spacing:.1em;margin-bottom:4px;">MY PORTFOLIO</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:var(--navy);">Investment Portfolio</h1>
+      </div>
+      <div class="tabs">
+        <button class="tab-btn active" onclick="portfolioTab('interests',this)">My Interests</button>
+        <button class="tab-btn" onclick="portfolioTab('active',this)">Active Investments</button>
+        <button class="tab-btn" onclick="portfolioTab('completed',this)">Completed</button>
+      </div>
+      <div id="portfolioInterests"></div>
+      <div id="portfolioActive" style="display:none;"></div>
+      <div id="portfolioCompleted" style="display:none;"></div>
+    </div>
+
+    <!-- REPORTS -->
+    <div id="sec-reports" class="page">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--green);letter-spacing:.1em;margin-bottom:4px;">DATA & REPORTS</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:var(--navy);">Platform Reports</h1>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;" id="reportStats"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="card" style="padding:24px;">
+          <h3 style="font-weight:700;color:var(--navy);margin-bottom:16px;font-size:15px;"><i class="fas fa-download" style="color:var(--green);margin-right:6px;"></i>Download Reports</h3>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <button class="btn btn-navy" onclick="downloadFullReport()" style="justify-content:center;"><i class="fas fa-file-csv"></i>Full Project Database (CSV)</button>
+            <button class="btn btn-ghost" onclick="downloadFundingReport()" style="justify-content:center;"><i class="fas fa-chart-bar"></i>Funding Phase Projects</button>
+            <button class="btn btn-ghost" onclick="downloadProgressReport()" style="justify-content:center;"><i class="fas fa-tasks"></i>Progress & Milestone Report</button>
+          </div>
+        </div>
+        <div class="card" style="padding:24px;">
+          <h3 style="font-weight:700;color:var(--navy);margin-bottom:16px;font-size:15px;"><i class="fas fa-lock" style="color:var(--green);margin-right:6px;"></i>Due Diligence</h3>
+          <p style="font-size:13px;color:#64748b;line-height:1.7;margin-bottom:16px;">Need detailed contractor background, project financials, or site verification reports? Contact admin directly.</p>
+          <button class="btn btn-green" onclick="emailAdmin('Due Diligence Request')" style="justify-content:center;width:100%;"><i class="fas fa-envelope"></i>Request Due Diligence</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- INTEREST MODAL -->
+<div id="modalInterest" class="modal">
+  <div class="modal-box" style="max-width:560px;">
+    <button onclick="closeModal('modalInterest')" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;color:#94a3b8;cursor:pointer;"><i class="fas fa-times"></i></button>
+    <h3 style="font-family:'Playfair Display',serif;font-size:20px;color:var(--navy);margin-bottom:4px;">Express Investment Interest</h3>
+    <p style="color:#64748b;font-size:13px;margin-bottom:20px;" id="interestProjectTitle"></p>
+    <input type="hidden" id="intProjId">
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div><label class="fl">INVESTMENT TYPE</label>
+          <select id="intType" class="form-input">
+            <option value="CSR">CSR (Corporate Social Responsibility)</option>
+            <option value="ROI">ROI Based Investment</option>
+            <option value="MLA_MP">MLA/MP Constituency Fund</option>
+            <option value="GRANT">Grant / Donation</option>
+          </select>
+        </div>
+        <div><label class="fl">PROPOSED AMOUNT (₹)</label><input id="intAmount" class="form-input" type="number" placeholder="e.g. 5000000"></div>
+      </div>
+      <div><label class="fl">YOUR MESSAGE TO ADMIN & CONTRACTOR *</label><textarea id="intMessage" class="form-input" rows="4" placeholder="Describe your interest, any conditions, timeline preference, or due diligence requirements..."></textarea></div>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;">
+        <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:6px;"><i class="fas fa-envelope" style="margin-right:6px;"></i>Email will be sent to admin with CC to you</div>
+        <div style="font-size:12px;color:#065f46;">Admin: <strong>connect@publicproject.co.in</strong><br>Your email: <strong id="intInvestorEmail"></strong></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-green" onclick="submitInterest()" id="submitIntBtn" style="flex:1;justify-content:center;font-size:14px;padding:12px;"><i class="fas fa-paper-plane"></i>Send Interest & Email Admin</button>
+      <button class="btn btn-ghost" onclick="closeModal('modalInterest')" style="padding:12px 16px;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast">
+  <div style="background:var(--navy);color:#fff;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.25);display:flex;align-items:center;gap:10px;max-width:320px;">
+    <i id="toastIcon" class="fas fa-check-circle" style="color:#34d399;flex-shrink:0;"></i>
+    <span id="toastMsg"></span>
+  </div>
+</div>
+
+<script>
+const TF_KEY = '16b15d5e-22ff-11ed-9c12-0200cd936042';
+const ADMIN_EMAIL = 'connect@publicproject.co.in';
+const ADMIN_PHONE = '8431356927';
+
+let OTP=null, IV_USER=null, _fbReady=false;
+// ── INVESTOR OTP (for mobile-based 2FA on login) ─────────────────
+async function sendInvestorOTP() {
+  const mob = document.getElementById('ivMobile').value.trim();
+  if (!/^[6-9]\d{9}$/.test(mob)) { showIVErr('Enter valid 10-digit Indian mobile number'); return; }
+  const btn = document.getElementById('ivOTPBtn');
+  btn.innerHTML = '<span class="spinner"></span> Sending...';
+  btn.disabled = true;
+  try {
+    const OTP_VAL = String(Math.floor(100000 + Math.random() * 900000));
+    const url = `https://2factor.in/API/V1/${TF_KEY}/SMS/+91${mob}/${OTP_VAL}/PublicProjectSMS`;
+    const r = await fetch(url);
+    const d = await r.json();
+    if (d.Status === 'Success') {
+      OTP = OTP_VAL;
+      document.getElementById('ivMobileShow').textContent = mob;
+      // Build 6 OTP input boxes
+      const bc = document.getElementById('ivOtpBoxes');
+      bc.innerHTML = '';
+      for (let i = 0; i < 6; i++) {
+        const inp = document.createElement('input');
+        inp.style.cssText = 'width:42px;height:50px;border:2px solid rgba(255,255,255,.3);border-radius:10px;text-align:center;font-size:20px;font-weight:800;color:#fff;background:rgba(255,255,255,.1);outline:none;';
+        inp.maxLength = 1; inp.inputMode = 'numeric';
+        inp.addEventListener('input', function() { if(this.value && i<5) bc.children[i+1].focus(); });
+        inp.addEventListener('keydown', function(e) { if(e.key==='Backspace'&&!this.value&&i>0) bc.children[i-1].focus(); });
+        bc.appendChild(inp);
+      }
+      setTimeout(() => bc.children[0]?.focus(), 100);
+      document.getElementById('ivLockStep1').style.display = 'none';
+      document.getElementById('ivLockStep2').style.display = 'block';
+      showIVErr('');
+    } else { showIVErr('SMS failed. Try again.'); }
+  } catch(e) { showIVErr('Network error. Check connection.'); }
+  btn.innerHTML = '<i class="fas fa-mobile-alt"></i>Send OTP';
+  btn.disabled = false;
+}
+
+async function verifyInvestorOTP() {
+  const entered = Array.from(document.getElementById('ivOtpBoxes').children).map(i=>i.value).join('');
+  if (entered.length !== 6) { showIVErr('Enter 6-digit OTP'); return; }
+  if (!OTP) { showIVErr('Please request OTP first'); return; }
+  if (entered !== OTP) { showIVErr('Incorrect OTP. Try again.'); return; }
+  // OTP verified — now find user by mobile
+  if (_fbReady && window.DB) {
+    _projects = await window.DB.getProjects() || [];
+    _users    = await window.DB.getUsers();
+    _bids     = await window.DB.getBids();
+  }
+  const mob = document.getElementById('ivMobile').value.trim();
+  const user = _users.find(u => u.mobile === mob && u.role === 'INVESTOR');
+  if (!user) { showIVErr('Mobile not registered as investor. Contact admin.'); return; }
+  IV_USER = user;
+  _interests = JSON.parse(localStorage.getItem('pp_interests_'+IV_USER.mobile) || '[]');
+  if (_fbReady && window.DB) window.DB.addLog({action:'INVESTOR_LOGIN_OTP', detail:`${user.name} signed in via OTP`, user:user.name});
+  enterPortal();
+}
+
+function resetIVLock() {
+  document.getElementById('ivLockStep1').style.display = 'block';
+  document.getElementById('ivLockStep2').style.display = 'none';
+  document.getElementById('ivMobile').value = '';
+  OTP = null;
+  showIVErr('');
+}
+
+
+let _projects=[], _bids=[], _users=[], _interests=[];
+
+window.addEventListener('firebaseReady', async () => {
+  _fbReady=true;
+  checkAutoLogin();
+});
+
+async function checkAutoLogin(){
+  const role = sessionStorage.getItem('pp_redirect_role');
+  if(role === 'INVESTOR'){
+    sessionStorage.removeItem('pp_redirect_mobile');
+    sessionStorage.removeItem('pp_redirect_role');
+    document.getElementById('ivEmail')?.focus();
+  }
+}
+
+// ── LOCK ─────────────────────────────────────────────
+async function investorLogin() {
+  const email    = document.getElementById('ivEmail').value.trim();
+  const password = document.getElementById('ivPassword').value.trim();
+  const errDiv   = document.getElementById('ivLoginError');
+  errDiv.style.display = 'none';
+  if (!email || !password) { showIVErr('Please enter email and password.'); return; }
+  const btn = document.getElementById('ivLoginBtn');
+  btn.innerHTML = '<span class="spinner" style="border-top-color:var(--green);border-color:rgba(0,128,0,.2);"></span> Signing in...';
+  btn.disabled = true;
+  if (_fbReady && window.DB) {
+    _projects = await window.DB.getProjects() || [];
+    _users    = await window.DB.getUsers();
+    _bids     = await window.DB.getBids();
+  } else {
+    _projects = JSON.parse(localStorage.getItem('pp_proj') || '[]');
+    _users    = JSON.parse(localStorage.getItem('pp_users') || '[]');
+    _bids     = JSON.parse(localStorage.getItem('pp_bids') || '[]');
+  }
+  const user = _users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase() && u.password === password && u.role === 'INVESTOR');
+  btn.innerHTML = '<i class="fas fa-sign-in-alt"></i>Sign In to Portal';
+  btn.disabled = false;
+  if (!user) { showIVErr('Invalid email or password. Contact admin if you forgot your password.'); return; }
+  IV_USER = user;
+  _interests = JSON.parse(localStorage.getItem('pp_interests_'+IV_USER.mobile) || '[]');
+  if (_fbReady && window.DB) window.DB.addLog({action:'INVESTOR_LOGIN', detail:`${user.name} signed in`, user:user.name});
+  enterPortal();
+}
+
+function showIVErr(msg) {
+  const e = document.getElementById('ivLoginError');
+  e.textContent = msg; e.style.display = 'block';
+}
+
+function ivLogout() {
+  IV_USER=null;
+  document.getElementById('lockScreen').style.display='flex';
+  document.getElementById('portalApp').style.display='none';
+  document.getElementById('ivEmail').value='';
+  document.getElementById('ivPassword').value='';
+}
+
+function enterPortal() {
+  document.getElementById('lockScreen').style.display='none';
+  document.getElementById('portalApp').style.display='flex';
+  document.getElementById('ivAvatar').textContent=IV_USER.name.charAt(0).toUpperCase();
+  document.getElementById('ivName').textContent=IV_USER.name;
+  document.getElementById('ivType').textContent=IV_USER.kycStatus==='verified'?'✓ KYC Verified':'⏳ KYC Pending';
+  document.getElementById('ivWelcome').textContent='Welcome, '+IV_USER.name;
+  if (IV_USER.kycStatus!=='verified') document.getElementById('ivKycWarning').style.display='block';
+  const funding=_projects.filter(p=>['FUNDING_PHASE','PROPOSAL_UNDER_REVIEW'].includes(p.status)).length;
+  document.getElementById('oppBadge').textContent=funding||'';
+  renderDashboard(); renderOpportunities(); renderContractorPPTs(); renderPortfolio(); renderReports();
+}
+
+
+
+// ── HELPERS ─────────────────────────────────────────
+const SL={CITIZEN_SUBMITTED:'Submitted',OPEN_FOR_PROPOSAL:'Open for Bids',PROPOSAL_UNDER_REVIEW:'Under Review',FUNDING_PHASE:'Funding Phase',IN_PROGRESS:'In Progress',COMPLETED:'Completed',REJECTED:'Rejected'};
+function badge(s){ const m={CITIZEN_SUBMITTED:'yellow',OPEN_FOR_PROPOSAL:'blue',PROPOSAL_UNDER_REVIEW:'purple',FUNDING_PHASE:'orange',IN_PROGRESS:'green',COMPLETED:'green',REJECTED:'red'}; return `<span class="badge badge-${m[s]||'blue'}">${SL[s]||s}</span>`; }
+function money(n){ if(!n)return'—'; if(n>=10000000)return'₹'+(n/10000000).toFixed(1)+'Cr'; if(n>=100000)return'₹'+(n/100000).toFixed(1)+'L'; return'₹'+n.toLocaleString('en-IN'); }
+function showSec(id,el){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); document.getElementById('sec-'+id).classList.add('active'); document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); if(el) el.classList.add('active'); }
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+document.addEventListener('click',e=>{ document.querySelectorAll('.modal.open').forEach(m=>{ if(e.target===m) m.classList.remove('open'); }); });
+
+// ── DASHBOARD ────────────────────────────────────────
+function renderDashboard() {
+  const funding=_projects.filter(p=>['FUNDING_PHASE','PROPOSAL_UNDER_REVIEW'].includes(p.status)).length;
+  const active=_projects.filter(p=>p.status==='IN_PROGRESS').length;
+  const completed=_projects.filter(p=>p.status==='COMPLETED').length;
+  const totalBudget=_projects.filter(p=>['FUNDING_PHASE','IN_PROGRESS'].includes(p.status)).reduce((s,p)=>s+(p.budget||0),0);
+
+  document.getElementById('ivStats').innerHTML=[
+    {label:'Funding Available',value:funding,icon:'fa-coins',color:'var(--orange)'},
+    {label:'Active Projects',value:active,icon:'fa-hard-hat',color:'var(--green)'},
+    {label:'Completed',value:completed,icon:'fa-check-circle',color:'var(--navy)'},
+    {label:'Total Opportunity',value:money(totalBudget),icon:'fa-rupee-sign',color:'var(--purple)'},
+  ].map(s=>`<div class="card" style="padding:16px;text-align:center;"><i class="fas ${s.icon}" style="color:${s.color};font-size:20px;display:block;margin-bottom:8px;"></i><div style="font-size:24px;font-weight:900;color:${s.color};">${s.value}</div><div style="font-size:11px;color:#94a3b8;margin-top:3px;">${s.label}</div></div>`).join('');
+
+  const topOpps=_projects.filter(p=>['FUNDING_PHASE','PROPOSAL_UNDER_REVIEW'].includes(p.status)).sort((a,b)=>(b.budget||0)-(a.budget||0)).slice(0,4);
+  document.getElementById('ivDashOpps').innerHTML=topOpps.length
+    ? topOpps.map(p=>`<div style="padding:12px;background:#f8f7f4;border-radius:8px;margin-bottom:8px;cursor:pointer;" onclick="showSec('opportunities',null)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+          <div style="font-size:13px;font-weight:600;color:var(--navy);">${p.title}</div>
+          ${badge(p.status)}
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;">
+          <span style="font-size:11px;color:#64748b;">${p.district} · ${p.category}</span>
+          <span style="font-size:13px;font-weight:800;color:var(--navy);">${money(p.budget)}</span>
+        </div>
+      </div>`).join('')
+    : '<div style="color:#94a3b8;font-size:13px;text-align:center;padding:20px;">No funding opportunities right now.</div>';
+
+  document.getElementById('ivDashPortfolio').innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="padding:12px;background:#f0fdf4;border-radius:8px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:3px;">MY INTERESTS</div>
+        <div style="font-size:20px;font-weight:900;color:var(--green);">${_interests.length}</div>
+      </div>
+      <div style="padding:12px;background:#eff6ff;border-radius:8px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:3px;">KYC STATUS</div>
+        <div style="font-size:13px;font-weight:700;color:var(--navy);">${IV_USER.kycStatus==='verified'?'✓ Verified':'⏳ Pending'}</div>
+      </div>
+      <div style="padding:12px;background:#faf5ff;border-radius:8px;cursor:pointer;" onclick="emailAdmin(null)">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:3px;">NEED DETAILS?</div>
+        <div style="font-size:12px;color:var(--purple);">Email admin for due diligence →</div>
+      </div>
+    </div>`;
+}
+
+// ── OPPORTUNITIES ────────────────────────────────────
+function renderOpportunities() {
+  const cat=(document.getElementById('oppCatFilter')?.value||'');
+  const sort=(document.getElementById('oppSortFilter')?.value||'budget');
+  let opps=_projects.filter(p=>['FUNDING_PHASE','PROPOSAL_UNDER_REVIEW','OPEN_FOR_PROPOSAL'].includes(p.status)&&(!cat||p.category===cat));
+  if(sort==='budget') opps.sort((a,b)=>(b.budget||0)-(a.budget||0));
+  else if(sort==='priority') { const po={CRITICAL:4,HIGH:3,MEDIUM:2,LOW:1}; opps.sort((a,b)=>(po[b.priority]||1)-(po[a.priority]||1)); }
+  else opps.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+
+  document.getElementById('opportunitiesList').innerHTML=opps.length
+    ? opps.map(p=>`
+      <div class="card" style="padding:24px;margin-bottom:16px;">
+        ${p.mediaUrl?`<img src="${p.mediaUrl}" style="width:100%;height:180px;object-fit:cover;border-radius:10px;margin-bottom:16px;" onerror="this.style.display='none'" loading="lazy">`:''}
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+          <div>
+            <div style="font-weight:700;color:var(--navy);font-size:16px;margin-bottom:4px;">${p.title}</div>
+            <div style="font-size:12px;color:#64748b;"><i class="fas fa-map-marker-alt" style="color:var(--orange);margin-right:4px;"></i>${p.district||'Karnataka'} · ${p.category}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+            ${badge(p.status)}
+            ${p.priority?`<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:${p.priority==='CRITICAL'?'#fee2e2':p.priority==='HIGH'?'#fff7ed':'#f1f5f9'};color:${p.priority==='CRITICAL'?'#991b1b':p.priority==='HIGH'?'#c2410c':'#64748b'};">${p.priority}</span>`:''}
+          </div>
+        </div>
+        <p style="font-size:14px;color:#475569;line-height:1.7;margin-bottom:16px;">${p.description}</p>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
+          <div style="background:#f8f7f4;border-radius:8px;padding:12px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:3px;">BUDGET</div><div style="font-weight:800;color:var(--navy);font-size:16px;">${money(p.budget)}</div></div>
+          <div style="background:#f8f7f4;border-radius:8px;padding:12px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:3px;">TIMELINE</div><div style="font-weight:800;color:var(--navy);">${p.timeline||'TBD'}</div></div>
+          <div style="background:#f8f7f4;border-radius:8px;padding:12px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:3px;">PROGRESS</div><div style="font-weight:800;color:var(--navy);">${p.pct||0}%</div></div>
+          <div style="background:#f8f7f4;border-radius:8px;padding:12px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:3px;">SUBMITTED</div><div style="font-weight:800;color:var(--navy);font-size:12px;">${p.createdAt||'—'}</div></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-green" onclick="openInterestModal('${p.id}','${p.title.replace(/'/g,"\\'")}')"><i class="fas fa-handshake"></i>Express Interest</button>
+          <button class="btn btn-navy btn-sm" onclick="emailAdmin('Interest in: ${p.title.replace(/'/g,"\\'")}')"><i class="fas fa-envelope"></i>Email Admin</button>
+          <button class="btn btn-ghost btn-sm" onclick="showSec('proposals',null)"><i class="fas fa-file-powerpoint"></i>View Contractor PPT</button>
+        </div>
+      </div>`).join('')
+    : '<div style="text-align:center;padding:48px;color:#94a3b8;"><i class="fas fa-search" style="font-size:36px;display:block;margin-bottom:12px;"></i>No funding opportunities right now.</div>';
+}
+
+// ── CONTRACTOR PPTs ───────────────────────────────────
+function renderContractorPPTs() {
+  const reviewed=_bids.filter(b=>b.status!=='REJECTED');
+  document.getElementById('contractorPPTList').innerHTML=reviewed.length
+    ? reviewed.map(b=>{
+        const proj=_projects.find(p=>p.id===b.projectId);
+        return `
+        <div class="card" style="padding:20px;margin-bottom:12px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+            <div>
+              <div style="font-weight:700;color:var(--navy);font-size:15px;">${proj?.title||'Project'}</div>
+              <div style="font-size:12px;color:#64748b;margin-top:2px;">Contractor: <strong>${b.contractorName||'—'}</strong> · Submitted: ${b.submittedAt?new Date(b.submittedAt).toLocaleDateString('en-IN'):'—'}</div>
+            </div>
+            ${badge(b.status||'PENDING REVIEW')}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;">
+            <div style="background:#f8f7f4;border-radius:8px;padding:10px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:2px;">CONTRACTOR BID</div><div style="font-weight:800;color:var(--navy);">${money(b.budget)}</div></div>
+            <div style="background:#f8f7f4;border-radius:8px;padding:10px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:2px;">TIMELINE</div><div style="font-weight:800;color:var(--navy);">${b.timeline||'—'}</div></div>
+            <div style="background:#f8f7f4;border-radius:8px;padding:10px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:2px;">PPT FILE</div><div style="font-weight:800;color:${b.hasPPT?'var(--green)':'#94a3b8'};">${b.hasPPT?'✓ Attached':'Not uploaded'}</div></div>
+          </div>
+          <div style="background:#f8f7f4;border-radius:8px;padding:12px;margin-bottom:12px;">
+            <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:4px;">EXECUTION PLAN</div>
+            <p style="font-size:13px;color:#475569;line-height:1.6;">${b.plan||'No details provided.'}</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${proj?`<button class="btn btn-green btn-sm" onclick="openInterestModal('${proj.id}','${(proj.title||'').replace(/'/g,"\\'")}')"><i class="fas fa-handshake"></i>Express Interest</button>`:''}
+            <button class="btn btn-ghost btn-sm" onclick="emailAdmin('Query about contractor proposal for: ${(proj?.title||'').replace(/'/g,"\\'")}')"><i class="fas fa-envelope"></i>Ask Admin About This</button>
+          </div>
+        </div>`;
+      }).join('')
+    : '<div style="text-align:center;padding:48px;color:#94a3b8;"><i class="fas fa-file-powerpoint" style="font-size:36px;display:block;margin-bottom:12px;"></i>No contractor proposals yet. Check back soon.</div>';
+}
+
+// ── PORTFOLIO ─────────────────────────────────────────
+function renderPortfolio() {
+  document.getElementById('portfolioInterests').innerHTML=_interests.length
+    ? _interests.map(i=>{
+        const proj=_projects.find(p=>p.id===i.projectId);
+        return `<div class="card" style="padding:16px;margin-bottom:10px;">
+          <div style="font-weight:700;color:var(--navy);font-size:14px;margin-bottom:4px;">${proj?.title||i.projectId}</div>
+          <div style="font-size:12px;color:#64748b;margin-bottom:8px;">Type: <strong>${i.type}</strong> · Amount: <strong>${money(i.amount)}</strong> · ${new Date(i.date).toLocaleDateString('en-IN')}</div>
+          <p style="font-size:12px;color:#94a3b8;">${i.message||''}</p>
+        </div>`;
+      }).join('')
+    : '<div style="text-align:center;padding:48px;color:#94a3b8;"><i class="fas fa-briefcase" style="font-size:36px;display:block;margin-bottom:12px;"></i>No interests registered yet.<br><button class="btn btn-green btn-sm" onclick="showSec(\'opportunities\',null)" style="margin-top:8px;"><i class="fas fa-search"></i>Browse Opportunities</button></div>';
+
+  document.getElementById('portfolioActive').innerHTML=_projects.filter(p=>p.status==='IN_PROGRESS').map(p=>`
+    <div class="card" style="padding:16px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+        <div style="font-weight:700;color:var(--navy);font-size:14px;">${p.title}</div>${badge(p.status)}
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${p.pct||0}%;"></div></div>
+      <div style="font-size:11px;color:#64748b;margin-top:4px;">${p.pct||0}% complete · ${money(p.budget)}</div>
+    </div>`).join('') || '<div style="text-align:center;padding:40px;color:#94a3b8;">No active investments.</div>';
+
+  document.getElementById('portfolioCompleted').innerHTML=_projects.filter(p=>p.status==='COMPLETED').map(p=>`
+    <div class="card" style="padding:16px;margin-bottom:10px;border-color:#bbf7d0;">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div style="font-weight:700;color:var(--navy);font-size:14px;">${p.title}</div>
+        <span style="font-size:11px;font-weight:700;background:#f0fdf4;color:#065f46;padding:3px 10px;border-radius:99px;">✓ COMPLETED</span>
+      </div>
+      <div style="font-size:12px;color:#64748b;margin-top:4px;">${p.district} · ${money(p.budget)}</div>
+    </div>`).join('') || '<div style="text-align:center;padding:40px;color:#94a3b8;">No completed investments.</div>';
+}
+
+function portfolioTab(tab, btn) {
+  document.querySelectorAll('#sec-portfolio .tab-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  document.getElementById('portfolioInterests').style.display=tab==='interests'?'block':'none';
+  document.getElementById('portfolioActive').style.display=tab==='active'?'block':'none';
+  document.getElementById('portfolioCompleted').style.display=tab==='completed'?'block':'none';
+}
+
+// ── REPORTS ───────────────────────────────────────────
+function renderReports() {
+  const total=_projects.length, active=_projects.filter(p=>p.status==='IN_PROGRESS').length, done=_projects.filter(p=>p.status==='COMPLETED').length;
+  document.getElementById('reportStats').innerHTML=[
+    {label:'Total Projects',value:total,icon:'fa-project-diagram',color:'var(--navy)'},
+    {label:'In Progress',value:active,icon:'fa-hard-hat',color:'var(--green)'},
+    {label:'Completed',value:done,icon:'fa-check-circle',color:'var(--orange)'},
+  ].map(s=>`<div class="card" style="padding:16px;text-align:center;"><i class="fas ${s.icon}" style="color:${s.color};font-size:20px;display:block;margin-bottom:8px;"></i><div style="font-size:24px;font-weight:900;color:${s.color};">${s.value}</div><div style="font-size:11px;color:#94a3b8;margin-top:3px;">${s.label}</div></div>`).join('');
+}
+
+function downloadFullReport() {
+  const rows=[['ID','Title','Category','District','Status','Progress%','Budget','Timeline','Priority','Date']];
+  _projects.forEach(p=>rows.push([p.id,p.title,p.category,p.district||'',p.status,p.pct||0,p.budget||0,p.timeline||'',p.priority||'',p.createdAt||'']));
+  dlCSV(rows,'PublicProject_Full_Report.csv');
+  toast('Report downloaded');
+}
+
+function downloadFundingReport() {
+  const funding=_projects.filter(p=>['FUNDING_PHASE','PROPOSAL_UNDER_REVIEW'].includes(p.status));
+  const rows=[['Title','Category','District','Budget','Timeline','Priority','Status']];
+  funding.forEach(p=>rows.push([p.title,p.category,p.district||'',p.budget||0,p.timeline||'',p.priority||'',p.status]));
+  dlCSV(rows,'FundingPhase_Projects.csv');
+  toast('Funding report downloaded');
+}
+
+function downloadProgressReport() {
+  const active=_projects.filter(p=>p.status==='IN_PROGRESS');
+  const rows=[['Title','District','Progress%','Budget','Timeline','Status']];
+  active.forEach(p=>rows.push([p.title,p.district||'',p.pct||0,p.budget||0,p.timeline||'',p.status]));
+  dlCSV(rows,'Progress_Report.csv');
+  toast('Progress report downloaded');
+}
+
+function dlCSV(rows,name) {
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=name; a.click();
+}
+
+// ── INTEREST MODAL ────────────────────────────────────
+function openInterestModal(id, title) {
+  if (IV_USER.kycStatus!=='verified') { toast('KYC must be approved to express interest','error'); return; }
+  document.getElementById('intProjId').value=id;
+  document.getElementById('interestProjectTitle').textContent='📋 '+title;
+  document.getElementById('intInvestorEmail').textContent=IV_USER.email||IV_USER.mobile+'@investor.in';
+  ['intAmount','intMessage'].forEach(el=>{ const e=document.getElementById(el); if(e) e.value=''; });
+  openModal('modalInterest');
+}
+
+async function submitInterest() {
+  const id=document.getElementById('intProjId').value;
+  const type=document.getElementById('intType').value;
+  const amount=document.getElementById('intAmount').value;
+  const message=document.getElementById('intMessage').value.trim();
+  if (!message) { toast('Please write your message','error'); return; }
+  const proj=_projects.find(p=>p.id===id);
+  const interest={projectId:id,projectTitle:proj?.title||'',investorId:IV_USER.id,investorName:IV_USER.name,investorMobile:IV_USER.mobile,investorEmail:IV_USER.email||'',type,amount:parseInt(amount)||0,message,status:'INTERESTED',date:new Date().toISOString()};
+  const btn=document.getElementById('submitIntBtn');
+  btn.innerHTML='<span class="spinner"></span> Sending...'; btn.disabled=true;
+  // Save interest
+  if (_fbReady&&window.DB) { await window.DB.saveInterest(interest); await window.DB.addLog({action:'INVESTOR_INTEREST',detail:`${IV_USER.name} interested in "${proj?.title}"`,user:IV_USER.name}); }
+  _interests.push(interest);
+  localStorage.setItem('pp_interests_'+IV_USER.mobile, JSON.stringify(_interests));
+  // Open email to admin with CC
+  const subject=encodeURIComponent(`Investment Interest: ${proj?.title||id} — ${IV_USER.name}`);
+  const body=encodeURIComponent(`Dear Admin,\n\nI am ${IV_USER.name} (${type}) expressing interest in the following project:\n\nProject: ${proj?.title||id}\nDistrict: ${proj?.district||'—'}\nBudget: ${money(proj?.budget)}\n\nProposed Investment: ${money(parseInt(amount)||0)}\nInvestment Type: ${type}\n\nMessage:\n${message}\n\nMy Contact:\nMobile: +91${IV_USER.mobile}\nEmail: ${IV_USER.email||'—'}\n\nPlease connect me with the contractor and share due diligence documents.\n\nRegards,\n${IV_USER.name}`);
+  btn.innerHTML='<i class="fas fa-paper-plane"></i>Send Interest & Email Admin'; btn.disabled=false;
+  closeModal('modalInterest');
+  toast('Interest registered! Opening email to admin...');
+  setTimeout(()=>{ window.location.href=`mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}&cc=${IV_USER.email||''}`; },800);
+  renderPortfolio(); renderDashboard();
+}
+
+// ── CONTACT ──────────────────────────────────────────
+function emailAdmin(subject) {
+  const sub=encodeURIComponent(subject||'Investor Query — '+IV_USER.name);
+  const body=encodeURIComponent(`Dear Admin,\n\nI am ${IV_USER.name} (Investor, +91${IV_USER.mobile}).\n\n[Write your message here]\n\nRegards,\n${IV_USER.name}`);
+  window.location.href=`mailto:${ADMIN_EMAIL}?subject=${sub}&body=${body}&cc=${IV_USER.email||''}`;
+}
+
+function callAdmin() { window.location.href='tel:+91'+ADMIN_PHONE; }
+
+// ── TOAST ────────────────────────────────────────────
+function toast(msg,type='success'){
+  const t=document.getElementById('toast');
+  document.getElementById('toastMsg').textContent=msg;
+  const icon=document.getElementById('toastIcon');
+  icon.className='fas '+(type==='error'?'fa-exclamation-circle':type==='info'?'fa-info-circle':'fa-check-circle');
+  icon.style.color=type==='error'?'#f87171':type==='info'?'#60a5fa':'#34d399';
+  t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),3500);
+}
+</script>
+</body>
+</html>
