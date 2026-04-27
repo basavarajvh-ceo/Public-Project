@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Public Project — Contractor Portal</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, getDocs, setDoc, addDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+const app = initializeApp({
+  apiKey:"AIzaSyC5PjXMJR9M9Zk5FPSeybkH8UEmrFNkk7Q",
+  authDomain:"public-project-026.firebaseapp.com",
+  projectId:"public-project-026",
+  storageBucket:"public-project-026.firebasestorage.app",
+  messagingSenderId:"512588357820",
+  appId:"1:512588357820:web:30abd8434acefb6be94b3b"
+});
+const db = getFirestore(app);
+window.DB = {
+  async getProjects(){ const s=await getDocs(collection(db,'projects')); return s.docs.map(d=>({id:d.id,...d.data()})); },
+  async saveProject(p){ const {id,...data}=p; await setDoc(doc(db,'projects',id),{...data,updatedAt:serverTimestamp()}); },
+  async getUsers(){ const s=await getDocs(collection(db,'users')); return s.docs.map(d=>({id:d.id,...d.data()})); },
+  async addBid(b){ await addDoc(collection(db,'bids'),{...b,time:serverTimestamp()}); },
+  async getBids(){ try{ const s=await getDocs(collection(db,'bids')); return s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){return[];} },
+  async getAds(){ try{ const s=await getDocs(collection(db,'ads')); return s.docs.map(d=>({id:d.id,...d.data()})).filter(a=>!a.deleted&&a.active); }catch(e){return[];} },
+  async addLog(e){ await addDoc(collection(db,'audit'),{...e,time:serverTimestamp()}); }
+};
+window.dispatchEvent(new Event('firebaseReady'));
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:#F8F7F4;color:#1e293b;}
+:root{--navy:#1B3A7A;--orange:#F97316;--green:#059669;}
+#lockScreen{position:fixed;inset:0;background:#1B3A7A;display:flex;align-items:center;justify-content:center;z-index:999;padding:20px;}
+#portalApp{display:none;}
+.page{display:none;} .page.active{display:block;animation:fu .2s ease;}
+@keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.card{background:#fff;border:1px solid #e8e6e0;border-radius:16px;}
+.card-sm{background:#fff;border:1px solid #e8e6e0;border-radius:12px;}
+.btn{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;border:none;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px;border-radius:10px;}
+.btn-navy{background:var(--navy);color:#fff;padding:9px 18px;font-size:13px;} .btn-navy:hover{background:#102550;}
+.btn-orange{background:var(--orange);color:#fff;padding:9px 18px;font-size:13px;} .btn-orange:hover{background:#ea580c;}
+.btn-green{background:var(--green);color:#fff;padding:9px 18px;font-size:13px;} .btn-green:hover{background:#047857;}
+.btn-ghost{background:#f1f5f9;color:#475569;padding:7px 14px;font-size:12px;} .btn-ghost:hover{background:#e2e8f0;}
+.btn-sm{padding:6px 12px;font-size:12px;}
+.form-input{width:100%;border:1.5px solid #e2e8f0;border-radius:10px;padding:11px 14px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;outline:none;transition:.15s;background:#fff;}
+.form-input:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(27,58,122,.08);}
+label.fl{display:block;font-size:11px;font-weight:700;color:#64748b;letter-spacing:.06em;margin-bottom:5px;}
+.badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;white-space:nowrap;}
+.badge-yellow{background:#fef3c7;color:#92400e;} .badge-blue{background:#dbeafe;color:#1e40af;}
+.badge-green{background:#d1fae5;color:#065f46;} .badge-red{background:#fee2e2;color:#991b1b;}
+.badge-purple{background:#ede9fe;color:#5b21b6;} .badge-orange{background:#fff7ed;color:#c2410c;}
+.tabs{border-bottom:1px solid #e8e6e0;display:flex;gap:0;margin-bottom:20px;}
+.tab-btn{padding:10px 18px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:#94a3b8;border-bottom:2px solid transparent;margin-bottom:-1px;font-family:'Plus Jakarta Sans',sans-serif;transition:.15s;}
+.tab-btn.active{color:var(--navy);border-bottom-color:var(--navy);font-weight:700;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#64748b;transition:.15s;margin:2px 6px;}
+.nav-item:hover{background:#eff6ff;color:var(--navy);}
+.nav-item.active{background:#eff6ff;color:var(--navy);}
+.progress-bar{height:5px;border-radius:99px;background:#e2e8f0;overflow:hidden;}
+.progress-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--navy),#3b82f6);}
+.modal{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px;}
+.modal.open{display:flex;}
+.modal-box{background:#fff;border-radius:20px;width:100%;max-height:90vh;overflow-y:auto;position:relative;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.15);}
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+#toast{position:fixed;bottom:24px;right:24px;z-index:999;transform:translateY(120px);transition:.3s;}
+#toast.show{transform:translateY(0);}
+@media(max-width:768px){#sidebar{width:100%;height:auto;position:static;flex-direction:row;overflow-x:auto;} #mainContent{margin-left:0;}}
+</style>
+</head>
+<body>
+
+<!-- LOCK SCREEN -->
+<div id="lockScreen">
+  <div style="background:rgba(255,255,255,.08);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.15);border-radius:24px;padding:40px;max-width:420px;width:100%;text-align:center;">
+    <div style="width:64px;height:64px;border-radius:16px;overflow:hidden;margin:0 auto 20px;">
+      <img src="icon-192.png" alt="Public Project" style="width:100%;height:100%;object-fit:cover;">
+    </div>
+    <h2 style="font-family:'Playfair Display',serif;font-size:26px;color:#fff;margin-bottom:6px;">Contractor Portal</h2>
+    <p style="color:rgba(255,255,255,.6);font-size:13px;margin-bottom:28px;">Public Project — Verified Contractors Only</p>
+    <div id="lockStep1">
+      <label class="fl" style="text-align:left;color:rgba(255,255,255,.5);">EMAIL ADDRESS</label>
+      <input id="ctEmail" class="form-input" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.15);color:#fff;margin-bottom:14px;" placeholder="your@email.com" type="email" onkeypress="if(event.key==='Enter')contractorLogin()">
+      <label class="fl" style="text-align:left;color:rgba(255,255,255,.5);">PASSWORD</label>
+      <input id="ctPassword" class="form-input" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.15);color:#fff;margin-bottom:20px;" placeholder="Your password" type="password" onkeypress="if(event.key==='Enter')contractorLogin()">
+      <button class="btn btn-orange" onclick="contractorLogin()" id="ctLoginBtn" style="width:100%;justify-content:center;font-size:14px;padding:12px;">
+        <i class="fas fa-sign-in-alt"></i>Sign In to Portal
+      </button>
+      <div id="ctLoginError" style="display:none;background:rgba(220,38,38,.2);border:1px solid rgba(220,38,38,.4);border-radius:8px;padding:10px;margin-top:12px;font-size:12px;color:#fca5a5;"></div>
+      <div style="margin-top:16px;font-size:12px;color:rgba(255,255,255,.4);">
+        Not registered? <a href="https://publicproject.in" style="color:var(--orange);">Sign up at publicproject.in</a><br>
+        <a href="https://publicproject.in" style="color:rgba(255,255,255,.4);margin-top:4px;display:inline-block;">← Back to main site</a>
+      </div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);font-size:11px;color:rgba(255,255,255,.25);">
+        <i class="fas fa-shield-alt" style="margin-right:4px;"></i>Forgot password? Contact admin at connect@publicproject.co.in
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PORTAL APP -->
+<div id="portalApp" style="display:flex;min-height:100vh;">
+  <!-- Sidebar -->
+  <div id="sidebar" style="width:220px;background:#fff;border-right:1px solid #e8e6e0;position:fixed;top:0;bottom:0;display:flex;flex-direction:column;z-index:50;">
+    <div style="padding:18px 14px;border-bottom:1px solid #e8e6e0;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <img src="icon-192.png" alt="PP" style="width:34px;height:34px;border-radius:10px;object-fit:cover;flex-shrink:0;">
+        <div><div style="font-weight:800;font-size:13px;color:var(--navy);">Public Project</div><div style="font-size:10px;color:#94a3b8;">Contractor Portal</div></div>
+      </div>
+    </div>
+    <div style="flex:1;padding:10px 0;overflow-y:auto;">
+      <div class="nav-item active" onclick="showSec('dashboard',this)"><i class="fas fa-th-large"></i>Dashboard</div>
+      <div class="nav-item" onclick="showSec('proposals',this)"><i class="fas fa-inbox"></i>Open Proposals <span id="openBadge" style="background:#eff6ff;color:var(--navy);font-size:10px;padding:1px 6px;border-radius:99px;margin-left:auto;font-weight:700;"></span></div>
+      <div class="nav-item" onclick="showSec('mybids',this)"><i class="fas fa-file-upload"></i>My Bids & PPTs</div>
+      <div class="nav-item" onclick="showSec('active',this)"><i class="fas fa-hard-hat"></i>Active Projects</div>
+      <div class="nav-item" onclick="showSec('profile',this)"><i class="fas fa-user"></i>My Profile</div>
+      <div style="margin:8px 14px;border-top:1px solid #e8e6e0;padding-top:8px;">
+        <div class="nav-item" style="color:var(--orange);" onclick="contactAdmin('chat')"><i class="fas fa-comment-dots"></i>Message Admin</div>
+        <div class="nav-item" style="color:var(--green);" onclick="contactAdmin('call')"><i class="fas fa-phone-alt"></i>Call Admin</div>
+      </div>
+    </div>
+    <div style="padding:12px 14px;border-top:1px solid #e8e6e0;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <div id="ctAvatar" style="width:32px;height:32px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0;"></div>
+        <div><div id="ctName" style="font-size:12px;font-weight:700;color:var(--navy);line-height:1.2;"></div><div id="ctStatus" style="font-size:10px;color:#94a3b8;"></div></div>
+      </div>
+      <button onclick="ctLogout()" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;"><i class="fas fa-sign-out-alt"></i>Sign Out</button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div id="mainContent" style="margin-left:220px;flex:1;padding:24px;">
+    <!-- CONTRACTOR ADS STRIP -->
+    <div id="contractor-ads-strip" style="display:none;margin-bottom:16px;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);"></div>
+
+    <!-- DASHBOARD -->
+    <div id="sec-dashboard" class="page active">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;">CONTRACTOR DASHBOARD</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:var(--navy);" id="ctWelcome">Welcome</h1>
+      </div>
+      <!-- KYC Warning -->
+      <div id="kycWarning" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:16px;margin-bottom:20px;">
+        <i class="fas fa-exclamation-triangle" style="color:var(--orange);margin-right:8px;"></i>
+        <strong style="color:#c2410c;">KYC Pending</strong> — Your account is under review by admin. You can browse proposals but cannot submit bids until approved.
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;" id="ctStats"></div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+        <div class="card" style="padding:20px;">
+          <h3 style="font-weight:700;color:var(--navy);margin-bottom:14px;font-size:14px;"><i class="fas fa-bell" style="color:var(--orange);margin-right:6px;"></i>New Opportunities</h3>
+          <div id="dashOpportunities"></div>
+        </div>
+        <div class="card" style="padding:20px;">
+          <h3 style="font-weight:700;color:var(--navy);margin-bottom:14px;font-size:14px;"><i class="fas fa-chart-line" style="color:var(--orange);margin-right:6px;"></i>My Activity</h3>
+          <div id="dashActivity"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPEN PROPOSALS -->
+    <div id="sec-proposals" class="page">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;">CITIZEN PROPOSALS</div>
+          <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:var(--navy);">Open for Bids</h1>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <select id="propCatFilter" class="form-input" style="width:auto;font-size:13px;" onchange="renderOpenProposals()">
+            <option value="">All Categories</option>
+            <option>Roads & Bridges</option><option>Water Supply</option>
+            <option>Renewable Energy</option><option>Education</option>
+            <option>Healthcare</option><option>Drainage</option><option>Other</option>
+          </select>
+          <input id="propSearch" class="form-input" placeholder="Search..." style="width:160px;font-size:13px;" oninput="renderOpenProposals()">
+        </div>
+      </div>
+      <div id="openProposalsList"></div>
+    </div>
+
+    <!-- MY BIDS & PPTs -->
+    <div id="sec-mybids" class="page">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;">MY SUBMISSIONS</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:var(--navy);">My Bids & PPTs</h1>
+      </div>
+      <div id="myBidsList"></div>
+    </div>
+
+    <!-- ACTIVE PROJECTS -->
+    <div id="sec-active" class="page">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;">IN PROGRESS</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:var(--navy);">Active Projects</h1>
+      </div>
+      <div id="activeProjectsList"></div>
+    </div>
+
+    <!-- PROFILE -->
+    <div id="sec-profile" class="page">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:.1em;margin-bottom:4px;">MY PROFILE</div>
+        <h1 style="font-family:'Playfair Display',serif;font-size:26px;color:var(--navy);">Contractor Profile</h1>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="card" style="padding:24px;" id="profileCard"></div>
+        <div class="card" style="padding:24px;">
+          <h3 style="font-weight:700;color:var(--navy);margin-bottom:16px;font-size:15px;"><i class="fas fa-star" style="color:var(--orange);margin-right:6px;"></i>Performance</h3>
+          <div id="perfCard"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- BID MODAL -->
+<div id="modalBid" class="modal">
+  <div class="modal-box" style="max-width:560px;">
+    <button onclick="closeModal('modalBid')" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;color:#94a3b8;cursor:pointer;"><i class="fas fa-times"></i></button>
+    <h3 style="font-family:'Playfair Display',serif;font-size:20px;color:var(--navy);margin-bottom:4px;">Submit Execution Proposal</h3>
+    <p style="color:#64748b;font-size:13px;margin-bottom:20px;" id="bidProjectTitle"></p>
+    <input type="hidden" id="bidProjId">
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div><label class="fl">ESTIMATED BUDGET (₹) *</label><input id="bidBudget" class="form-input" type="number" placeholder="e.g. 2500000"></div>
+        <div><label class="fl">TIMELINE *</label><input id="bidTimeline" class="form-input" placeholder="e.g. 8 months"></div>
+      </div>
+      <div><label class="fl">EXECUTION PLAN SUMMARY *</label><textarea id="bidPlan" class="form-input" rows="4" placeholder="Describe your approach: methodology, team size, equipment, past similar projects..."></textarea></div>
+      <div><label class="fl">UPLOAD PPT / PROPOSAL DOCUMENT</label>
+        <div id="pptUploadArea" style="border:2px dashed #e2e8f0;border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:.15s;" onclick="document.getElementById('pptFile').click()" onmouseover="this.style.borderColor='var(--navy)'" onmouseout="this.style.borderColor='#e2e8f0'">
+          <input type="file" id="pptFile" accept=".pdf,.ppt,.pptx,.doc,.docx" style="display:none;" onchange="handlePPTUpload(this)">
+          <div id="pptPlaceholder"><i class="fas fa-file-upload" style="font-size:24px;color:#94a3b8;margin-bottom:8px;display:block;"></i><div style="font-size:13px;color:#64748b;">Upload PPT / PDF / Word</div><div style="font-size:11px;color:#94a3b8;margin-top:4px;">Max 10MB</div></div>
+          <div id="pptUploaded" style="display:none;"><i class="fas fa-check-circle" style="font-size:24px;color:var(--green);margin-bottom:8px;display:block;"></i><div style="font-size:13px;font-weight:700;color:var(--green);" id="pptFileName"></div><button onclick="event.stopPropagation();clearPPT()" style="margin-top:4px;background:none;border:none;color:#94a3b8;font-size:11px;cursor:pointer;text-decoration:underline;">Remove</button></div>
+        </div>
+      </div>
+      <!-- MANDATORY LAND STATUS -->
+      <div style="background:#fff7ed;border:1.5px solid #f97316;border-radius:10px;padding:14px;">
+        <div style="font-size:12px;font-weight:800;color:#f97316;margin-bottom:10px;letter-spacing:.05em;"><i class="fas fa-map-marker-alt" style="margin-right:6px;"></i>LAND STATUS (MANDATORY — Admin blocks if incomplete)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div><label class="fl">LAND STATUS *</label>
+            <select id="bidLandStatus" class="form-input">
+              <option value="">Select status</option>
+              <option value="Allocated">Allocated (Govt/Panchayat approved)</option>
+              <option value="Pending">Pending (Approval in progress)</option>
+              <option value="Private">Private (Owner consent obtained)</option>
+            </select>
+          </div>
+          <div><label class="fl">SURVEY NUMBER *</label><input id="bidSurveyNo" class="form-input" placeholder="e.g. 123/4A"></div>
+        </div>
+        <div style="margin-top:10px;"><label class="fl">LOCATION PIN / GPS *</label><input id="bidLocationPin" class="form-input" placeholder="e.g. 15.8497 N, 74.4977 E or Google Maps link"></div>
+        <div style="font-size:11px;color:#92400e;margin-top:8px;"><i class="fas fa-info-circle" style="margin-right:4px;"></i>Without land details, your proposal will NOT reach investors. Platform policy for transparency.</div>
+      </div>
+      <div><label class="fl">ADDITIONAL NOTES</label><textarea id="bidNotes" class="form-input" rows="2" placeholder="Any special considerations, local knowledge, or requirements..."></textarea></div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-orange" onclick="submitBid()" id="submitBidBtn" style="flex:1;justify-content:center;font-size:14px;padding:12px;"><i class="fas fa-paper-plane"></i>Submit to Admin for Review</button>
+      <button class="btn btn-ghost" onclick="closeModal('modalBid')" style="padding:12px 16px;">Cancel</button>
+    </div>
+    <p style="font-size:11px;color:#94a3b8;text-align:center;margin-top:8px;"><i class="fas fa-info-circle" style="margin-right:4px;"></i>Admin reviews your proposal before it goes to investors</p>
+  </div>
+</div>
+
+<!-- PROGRESS UPDATE MODAL -->
+<div id="modalProgress" class="modal">
+  <div class="modal-box" style="max-width:480px;">
+    <button onclick="closeModal('modalProgress')" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;color:#94a3b8;cursor:pointer;"><i class="fas fa-times"></i></button>
+    <h3 style="font-family:'Playfair Display',serif;font-size:20px;color:var(--navy);margin-bottom:20px;">Update Project Progress</h3>
+    <input type="hidden" id="progProjId">
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px;">
+      <div><label class="fl">COMPLETION % *</label>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <input type="range" id="progPct" min="0" max="100" value="0" style="flex:1;accent-color:var(--navy);" oninput="document.getElementById('progPctVal').textContent=this.value+'%'">
+          <span id="progPctVal" style="font-weight:800;color:var(--navy);min-width:40px;">0%</span>
+        </div>
+      </div>
+      <div><label class="fl">MILESTONE COMPLETED *</label><input id="progMilestone" class="form-input" placeholder="e.g. Foundation work complete, 2km road laid..."></div>
+      <div><label class="fl">CURRENT STATUS DESCRIPTION</label><textarea id="progDesc" class="form-input" rows="3" placeholder="What work was done this week? Any challenges?"></textarea></div>
+      <div><label class="fl">PHOTO UPLOAD (optional)</label>
+        <div style="border:2px dashed #e2e8f0;border-radius:10px;padding:14px;text-align:center;cursor:pointer;" onclick="document.getElementById('progPhoto').click()">
+          <input type="file" id="progPhoto" accept="image/*" style="display:none;" onchange="handleProgPhoto(this)">
+          <div id="progPhotoStatus" style="font-size:12px;color:#94a3b8;"><i class="fas fa-camera" style="margin-right:6px;"></i>Upload site photo</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-navy" onclick="submitProgress()" style="width:100%;justify-content:center;font-size:14px;padding:12px;"><i class="fas fa-sync-alt"></i>Submit Progress Update</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast">
+  <div style="background:var(--navy);color:#fff;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.25);display:flex;align-items:center;gap:10px;max-width:320px;">
+    <i id="toastIcon" class="fas fa-check-circle" style="color:#34d399;flex-shrink:0;"></i>
+    <span id="toastMsg"></span>
+  </div>
+</div>
+
+<script>
+const TF_KEY = '16b15d5e-22ff-11ed-9c12-0200cd936042';
+const ADMIN_PHONE = '8431356927';
+const ADMIN_EMAIL = 'connect@publicproject.co.in';
+
+let OTP = null, CT_USER = null, _fbReady = false;
+let _projects = [], _bids = [], _users = [];
+let pptDataUrl = null, progPhotoUrl = null;
+
+window.addEventListener('firebaseReady', async () => {
+  _fbReady = true;
+  // Check if redirected from main site login
+  checkAutoLogin();
+});
+
+async function checkAutoLogin(){
+  // Check if coming from main site — just focus email field
+  const role = sessionStorage.getItem('pp_redirect_role');
+  if(role === 'CONTRACTOR'){
+    sessionStorage.removeItem('pp_redirect_mobile');
+    sessionStorage.removeItem('pp_redirect_role');
+    document.getElementById('ctEmail')?.focus();
+  }
+}
+
+// ── LOCK ────────────────────────────────────────────
+async function contractorLogin() {
+  const email    = document.getElementById('ctEmail').value.trim();
+  const password = document.getElementById('ctPassword').value.trim();
+  const errDiv   = document.getElementById('ctLoginError');
+  errDiv.style.display = 'none';
+  if (!email || !password) { showLoginErr('Please enter email and password.'); return; }
+  const btn = document.getElementById('ctLoginBtn');
+  btn.innerHTML = '<span class="spinner"></span> Signing in...';
+  btn.disabled = true;
+  // Load data
+  if (_fbReady && window.DB) {
+    _projects = await window.DB.getProjects() || [];
+    _users    = await window.DB.getUsers();
+    _bids     = await window.DB.getBids();
+  } else {
+    _projects = JSON.parse(localStorage.getItem('pp_proj') || '[]');
+    _users    = JSON.parse(localStorage.getItem('pp_users') || '[]');
+    _bids     = JSON.parse(localStorage.getItem('pp_bids') || '[]');
+  }
+  // Find user by email + password
+  const user = _users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase() && u.password === password && u.role === 'CONTRACTOR');
+  btn.innerHTML = '<i class="fas fa-sign-in-alt"></i>Sign In to Portal';
+  btn.disabled = false;
+  if (!user) { showLoginErr('Invalid email or password. Contact admin if you forgot your password.'); return; }
+  CT_USER = user;
+  if (_fbReady && window.DB) window.DB.addLog({action:'CONTRACTOR_LOGIN', detail:`${user.name} signed in`, user:user.name});
+  enterPortal();
+}
+
+function showLoginErr(msg) {
+  const e = document.getElementById('ctLoginError');
+  e.textContent = msg; e.style.display = 'block';
+}
+
+function ctLogout() {
+  CT_USER = null;
+  document.getElementById('lockScreen').style.display = 'flex';
+  document.getElementById('portalApp').style.display = 'none';
+  document.getElementById('ctEmail').value = '';
+  document.getElementById('ctPassword').value = '';
+}
+
+function enterPortal() {
+  document.getElementById('lockScreen').style.display = 'none';
+  document.getElementById('portalApp').style.display = 'flex';
+  document.getElementById('ctAvatar').textContent = CT_USER.name.charAt(0).toUpperCase();
+  document.getElementById('ctName').textContent = CT_USER.name;
+  document.getElementById('ctStatus').textContent = CT_USER.kycStatus === 'verified' ? '✓ KYC Verified' : '⏳ KYC Pending';
+  document.getElementById('ctWelcome').textContent = 'Welcome, ' + CT_USER.name;
+  if (CT_USER.kycStatus !== 'verified') document.getElementById('kycWarning').style.display = 'block';
+  renderDashboard();
+  renderOpenProposals();
+  renderMyBids();
+  renderActiveProjects();
+  loadContractorAds();
+  renderProfile();
+  const open = _projects.filter(p => ['OPEN_FOR_PROPOSAL','CITIZEN_SUBMITTED'].includes(p.status)).length;
+  document.getElementById('openBadge').textContent = open || '';
+}
+
+
+
+// ── HELPERS ─────────────────────────────────────────
+const SL = {CITIZEN_SUBMITTED:'Submitted',OPEN_FOR_PROPOSAL:'Open for Bids',PROPOSAL_UNDER_REVIEW:'Under Review',FUNDING_PHASE:'Funding Phase',IN_PROGRESS:'In Progress',COMPLETED:'Completed',REJECTED:'Rejected'};
+function badge(s) {
+  const map = {CITIZEN_SUBMITTED:'yellow',OPEN_FOR_PROPOSAL:'blue',PROPOSAL_UNDER_REVIEW:'purple',FUNDING_PHASE:'orange',IN_PROGRESS:'green',COMPLETED:'green',REJECTED:'red'};
+  return `<span class="badge badge-${map[s]||'blue'}">${SL[s]||s}</span>`;
+}
+function money(n) { if(!n)return'—'; if(n>=10000000)return'₹'+(n/10000000).toFixed(1)+'Cr'; if(n>=100000)return'₹'+(n/100000).toFixed(1)+'L'; return'₹'+n.toLocaleString('en-IN'); }
+function showSec(id, el) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('sec-'+id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(el) el.classList.add('active');
+}
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+document.addEventListener('click', e => { document.querySelectorAll('.modal.open').forEach(m=>{ if(e.target===m) m.classList.remove('open'); }); });
+
+// ── DASHBOARD ────────────────────────────────────────
+function renderDashboard() {
+  const open = _projects.filter(p=>['OPEN_FOR_PROPOSAL','CITIZEN_SUBMITTED'].includes(p.status)).length;
+  const myBids = _bids.filter(b=>b.contractorId===CT_USER.id).length;
+  const myActive = _projects.filter(p=>p.contractorId===CT_USER.id&&p.status==='IN_PROGRESS').length;
+  const myDone = _projects.filter(p=>p.contractorId===CT_USER.id&&p.status==='COMPLETED').length;
+  document.getElementById('ctStats').innerHTML = [
+    {label:'Open Proposals',value:open,icon:'fa-inbox',color:'#3b82f6'},
+    {label:'My Bids',value:myBids,icon:'fa-file-upload',color:'var(--orange)'},
+    {label:'Active Projects',value:myActive,icon:'fa-hard-hat',color:'var(--green)'},
+    {label:'Completed',value:myDone,icon:'fa-check-circle',color:'var(--navy)'},
+  ].map(s=>`<div class="card" style="padding:16px;text-align:center;"><i class="fas ${s.icon}" style="color:${s.color};font-size:20px;display:block;margin-bottom:8px;"></i><div style="font-size:26px;font-weight:900;color:${s.color};">${s.value}</div><div style="font-size:11px;color:#94a3b8;margin-top:3px;">${s.label}</div></div>`).join('');
+
+  const opps = _projects.filter(p=>['OPEN_FOR_PROPOSAL','CITIZEN_SUBMITTED'].includes(p.status)).slice(0,4);
+  document.getElementById('dashOpportunities').innerHTML = opps.length
+    ? opps.map(p=>`<div style="padding:10px;background:#f8f7f4;border-radius:8px;margin-bottom:8px;cursor:pointer;" onclick="showSec('proposals',null)">
+        <div style="font-size:13px;font-weight:600;color:var(--navy);">${p.title}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+          <span style="font-size:11px;color:#64748b;">${p.district||'—'} · ${p.category}</span>
+          <span style="font-size:12px;font-weight:700;color:var(--navy);">${money(p.budget)}</span>
+        </div>
+      </div>`).join('')
+    : '<div style="color:#94a3b8;font-size:13px;text-align:center;padding:20px;">No open proposals right now.</div>';
+
+  document.getElementById('dashActivity').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="padding:12px;background:#f0fdf4;border-radius:8px;"><div style="font-size:12px;font-weight:700;color:var(--green);">KYC Status</div><div style="font-size:13px;color:#065f46;">${CT_USER.kycStatus==='verified'?'✓ Verified':'⏳ Pending Review'}</div></div>
+      <div style="padding:12px;background:#eff6ff;border-radius:8px;"><div style="font-size:12px;font-weight:700;color:var(--navy);">Total Bids</div><div style="font-size:13px;color:var(--navy);">${_bids.filter(b=>b.contractorId===CT_USER.id).length} submitted</div></div>
+      <div style="padding:12px;background:#fff7ed;border-radius:8px;cursor:pointer;" onclick="contactAdmin('chat')"><div style="font-size:12px;font-weight:700;color:var(--orange);">Need Help?</div><div style="font-size:13px;color:#c2410c;">Message or call admin →</div></div>
+    </div>`;
+}
+
+// ── OPEN PROPOSALS ───────────────────────────────────
+function renderOpenProposals() {
+  const cat = document.getElementById('propCatFilter')?.value || '';
+  const search = (document.getElementById('propSearch')?.value || '').toLowerCase();
+  const open = _projects.filter(p =>
+    ['OPEN_FOR_PROPOSAL','CITIZEN_SUBMITTED'].includes(p.status) &&
+    (!cat || p.category === cat) &&
+    (!search || p.title.toLowerCase().includes(search) || (p.district||'').toLowerCase().includes(search))
+  );
+  document.getElementById('openProposalsList').innerHTML = open.length
+    ? open.map(p => `
+      <div class="card" style="padding:20px;margin-bottom:12px;">
+        ${p.mediaUrl ? `<img src="${p.mediaUrl}" style="width:100%;height:160px;object-fit:cover;border-radius:10px;margin-bottom:14px;" onerror="this.style.display='none'" loading="lazy">` : ''}
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+          <div>
+            <div style="font-weight:700;color:var(--navy);font-size:15px;">${p.title}</div>
+            <div style="font-size:12px;color:#64748b;margin-top:2px;"><i class="fas fa-map-marker-alt" style="color:var(--orange);margin-right:4px;"></i>${p.district||'Karnataka'} · ${p.category} · Priority: <strong>${p.priority||'Medium'}</strong></div>
+          </div>
+          ${badge(p.status)}
+        </div>
+        <p style="font-size:13px;color:#475569;line-height:1.65;margin-bottom:14px;">${p.description}</p>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+          <div style="background:#f8f7f4;border-radius:8px;padding:10px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:3px;">BUDGET EST.</div><div style="font-weight:800;color:var(--navy);">${money(p.budget)}</div></div>
+          <div style="background:#f8f7f4;border-radius:8px;padding:10px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:3px;">TIMELINE</div><div style="font-weight:800;color:var(--navy);">${p.timeline||'TBD'}</div></div>
+          <div style="background:#f8f7f4;border-radius:8px;padding:10px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:3px;">SUBMITTED</div><div style="font-weight:800;color:var(--navy);">${p.createdAt||'—'}</div></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-orange" onclick="openBidModal('${p.id}','${p.title.replace(/'/g,"\\'")}')"><i class="fas fa-file-upload"></i>Submit Bid & PPT</button>
+          <button class="btn btn-ghost" onclick="contactAdminAbout('${p.title.replace(/'/g,"\\'")}')"><i class="fas fa-comment"></i>Ask Admin</button>
+        </div>
+      </div>`).join('')
+    : '<div style="text-align:center;padding:48px;color:#94a3b8;"><i class="fas fa-inbox" style="font-size:36px;display:block;margin-bottom:12px;"></i>No open proposals right now. Check back soon!</div>';
+}
+
+// ── MY BIDS ──────────────────────────────────────────
+function renderMyBids() {
+  const myBids = _bids.filter(b => b.contractorId === CT_USER.id);
+  document.getElementById('myBidsList').innerHTML = myBids.length
+    ? myBids.map(b => {
+        const proj = _projects.find(p=>p.id===b.projectId);
+        return `
+        <div class="card" style="padding:20px;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+            <div>
+              <div style="font-weight:700;color:var(--navy);font-size:14px;">${proj?.title||b.projectTitle||'Project'}</div>
+              <div style="font-size:11px;color:#64748b;margin-top:2px;">Submitted ${b.submittedAt?new Date(b.submittedAt).toLocaleDateString('en-IN'):'—'}</div>
+            </div>
+            <span class="badge ${b.status==='APPROVED'?'badge-green':b.status==='REJECTED'?'badge-red':'badge-yellow'}">${b.status||'PENDING REVIEW'}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px;">
+            <div style="background:#f8f7f4;border-radius:8px;padding:10px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:2px;">YOUR BID</div><div style="font-weight:800;color:var(--navy);font-size:14px;">${money(b.budget)}</div></div>
+            <div style="background:#f8f7f4;border-radius:8px;padding:10px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:2px;">TIMELINE</div><div style="font-weight:800;color:var(--navy);font-size:14px;">${b.timeline||'—'}</div></div>
+            <div style="background:#f8f7f4;border-radius:8px;padding:10px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:2px;">PPT</div><div style="font-weight:800;color:${b.hasPPT?'var(--green)':'#94a3b8'};font-size:13px;">${b.hasPPT?'✓ Uploaded':'—'}</div></div>
+          </div>
+          <p style="font-size:12px;color:#64748b;line-height:1.5;">${b.plan||''}</p>
+          ${b.adminNote?`<div style="margin-top:10px;padding:10px;background:#fff7ed;border-radius:8px;font-size:12px;color:#c2410c;"><strong>Admin Note:</strong> ${b.adminNote}</div>`:''}
+        </div>`;
+      }).join('')
+    : '<div style="text-align:center;padding:48px;color:#94a3b8;"><i class="fas fa-file-upload" style="font-size:36px;display:block;margin-bottom:12px;"></i><p>No bids submitted yet.</p><button class="btn btn-orange" onclick="showSec(\'proposals\',null)" style="margin-top:8px;"><i class="fas fa-search"></i>Browse Open Proposals</button></div>';
+}
+
+// ── ACTIVE PROJECTS ──────────────────────────────────
+function renderActiveProjects() {
+  const active = _projects.filter(p => p.contractorId===CT_USER.id || p.status==='IN_PROGRESS');
+  document.getElementById('activeProjectsList').innerHTML = active.length
+    ? active.map(p=>`
+      <div class="card" style="padding:20px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+          <div><div style="font-weight:700;color:var(--navy);font-size:15px;">${p.title}</div><div style="font-size:12px;color:#64748b;">${p.district} · ${money(p.budget)}</div></div>
+          ${badge(p.status)}
+        </div>
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-bottom:4px;"><span>Progress</span><span style="font-weight:700;color:var(--navy);">${p.pct||0}%</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${p.pct||0}%;"></div></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-navy btn-sm" onclick="openProgressModal('${p.id}','${p.pct||0}')"><i class="fas fa-sync-alt"></i>Update Progress</button>
+          <button class="btn btn-ghost btn-sm" onclick="contactAdminAbout('${p.title.replace(/'/g,"\\'")}')"><i class="fas fa-comment"></i>Message Admin</button>
+        </div>
+      </div>`).join('')
+    : '<div style="text-align:center;padding:48px;color:#94a3b8;"><i class="fas fa-hard-hat" style="font-size:36px;display:block;margin-bottom:12px;"></i>No active projects yet.</div>';
+}
+
+// ── PROFILE ──────────────────────────────────────────
+function renderProfile() {
+  document.getElementById('profileCard').innerHTML = `
+    <h3 style="font-weight:700;color:var(--navy);margin-bottom:16px;font-size:15px;"><i class="fas fa-user" style="color:var(--orange);margin-right:6px;"></i>Profile Details</h3>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+      <div><label class="fl">COMPANY / NAME</label><input class="form-input" value="${CT_USER.name||''}" readonly style="background:#f8f7f4;"></div>
+      <div><label class="fl">MOBILE</label><input class="form-input" value="+91 ${CT_USER.mobile||''}" readonly style="background:#f8f7f4;"></div>
+      <div><label class="fl">EMAIL</label><input class="form-input" value="${CT_USER.email||'—'}" readonly style="background:#f8f7f4;"></div>
+      <div><label class="fl">PINCODE</label><input class="form-input" value="${CT_USER.pincode||'—'}" readonly style="background:#f8f7f4;"></div>
+      <div><label class="fl">KYC STATUS</label>
+        <div style="padding:10px 14px;border-radius:10px;font-weight:700;font-size:13px;background:${CT_USER.kycStatus==='verified'?'#f0fdf4':'#fff7ed'};color:${CT_USER.kycStatus==='verified'?'#065f46':'#c2410c'};">
+          ${CT_USER.kycStatus==='verified'?'✓ KYC Verified':'⏳ Pending Admin Review'}
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-orange btn-sm" onclick="contactAdmin('chat')"><i class="fas fa-comment"></i>Contact Admin to Update</button>`;
+
+  document.getElementById('perfCard').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="padding:12px;background:#eff6ff;border-radius:8px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:3px;">BIDS SUBMITTED</div>
+        <div style="font-size:20px;font-weight:900;color:var(--navy);">${_bids.filter(b=>b.contractorId===CT_USER.id).length}</div>
+      </div>
+      <div style="padding:12px;background:#f0fdf4;border-radius:8px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:3px;">PROJECTS COMPLETED</div>
+        <div style="font-size:20px;font-weight:900;color:var(--green);">${_projects.filter(p=>p.contractorId===CT_USER.id&&p.status==='COMPLETED').length}</div>
+      </div>
+      <div style="padding:12px;background:#fff7ed;border-radius:8px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:3px;">MEMBER SINCE</div>
+        <div style="font-size:13px;font-weight:700;color:var(--navy);">${CT_USER.createdAt?new Date(CT_USER.createdAt).toLocaleDateString('en-IN'):'—'}</div>
+      </div>
+    </div>`;
+}
+
+// ── BID ──────────────────────────────────────────────
+function openBidModal(id, title) {
+  if (CT_USER.kycStatus !== 'verified') { toast('KYC must be approved before submitting bids', 'error'); return; }
+  document.getElementById('bidProjId').value = id;
+  document.getElementById('bidProjectTitle').textContent = '📋 ' + title;
+  ['bidBudget','bidTimeline','bidPlan','bidNotes'].forEach(el => { const e=document.getElementById(el); if(e) e.value=''; });
+  pptDataUrl = null;
+  document.getElementById('pptPlaceholder').style.display='block';
+  document.getElementById('pptUploaded').style.display='none';
+  openModal('modalBid');
+}
+
+function handlePPTUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 10*1024*1024) { toast('File too large. Max 10MB', 'error'); return; }
+  pptDataUrl = URL.createObjectURL(file);
+  document.getElementById('pptFileName').textContent = file.name + ' (' + (file.size/1024).toFixed(0) + ' KB)';
+  document.getElementById('pptPlaceholder').style.display='none';
+  document.getElementById('pptUploaded').style.display='block';
+}
+
+function clearPPT() {
+  pptDataUrl = null;
+  document.getElementById('pptFile').value='';
+  document.getElementById('pptPlaceholder').style.display='block';
+  document.getElementById('pptUploaded').style.display='none';
+}
+
+async function submitBid() {
+  const id       = document.getElementById('bidProjId').value;
+  const budget   = document.getElementById('bidBudget').value;
+  const timeline = document.getElementById('bidTimeline').value;
+  const plan     = document.getElementById('bidPlan').value.trim();
+  const notes    = document.getElementById('bidNotes').value.trim();
+  if (!budget || !timeline || !plan) { toast('Fill all required fields', 'error'); return; }
+  const btn = document.getElementById('submitBidBtn');
+  btn.innerHTML = '<span class="spinner"></span> Submitting...';
+  btn.disabled = true;
+  const bid = {
+    projectId: id, contractorId: CT_USER.id, contractorName: CT_USER.name,
+    contractorMobile: CT_USER.mobile, budget: parseInt(budget), timeline, landStatus, surveyNo, locationPin,
+    plan, notes, hasPPT: !!pptDataUrl, status: 'PENDING REVIEW',
+    submittedAt: new Date().toISOString()
+  };
+  // Save bid
+  if (_fbReady && window.DB) { await window.DB.addBid(bid); await window.DB.addLog({action:'BID_SUBMITTED',detail:`${CT_USER.name} bid on project ${id}`,user:CT_USER.name}); }
+  else { const bids=JSON.parse(localStorage.getItem('pp_bids')||'[]'); bids.push({...bid,id:'b_'+Date.now()}); localStorage.setItem('pp_bids',JSON.stringify(bids)); _bids=bids; }
+  // Update project status
+  const pidx = _projects.findIndex(p=>p.id===id);
+  if (pidx>-1) { _projects[pidx].status='PROPOSAL_UNDER_REVIEW'; _projects[pidx].contractorId=CT_USER.id; if(_fbReady&&window.DB) window.DB.saveProject(_projects[pidx]); else localStorage.setItem('pp_proj',JSON.stringify(_projects)); }
+  btn.innerHTML = '<i class="fas fa-paper-plane"></i>Submit to Admin for Review';
+  btn.disabled = false;
+  closeModal('modalBid');
+  toast('Bid submitted! Admin will review and present to investors.');
+  _bids = [..._bids, {...bid,id:'b_'+Date.now()}];
+  renderMyBids(); renderDashboard();
+}
+
+// ── PROGRESS ─────────────────────────────────────────
+function openProgressModal(id, currentPct) {
+  document.getElementById('progProjId').value = id;
+  document.getElementById('progPct').value = currentPct;
+  document.getElementById('progPctVal').textContent = currentPct + '%';
+  ['progMilestone','progDesc'].forEach(el=>{ const e=document.getElementById(el); if(e) e.value=''; });
+  progPhotoUrl = null;
+  document.getElementById('progPhotoStatus').innerHTML = '<i class="fas fa-camera" style="margin-right:6px;"></i>Upload site photo';
+  openModal('modalProgress');
+}
+
+function handleProgPhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { progPhotoUrl = e.target.result; document.getElementById('progPhotoStatus').innerHTML = '<i class="fas fa-check-circle" style="color:var(--green);margin-right:6px;"></i>' + file.name; };
+  reader.readAsDataURL(file);
+}
+
+async function submitProgress() {
+  const id = document.getElementById('progProjId').value;
+  const pct = parseInt(document.getElementById('progPct').value);
+  const milestone = document.getElementById('progMilestone').value.trim();
+  if (!milestone) { toast('Enter milestone completed', 'error'); return; }
+  const pidx = _projects.findIndex(p=>p.id===id);
+  if (pidx>-1) {
+    _projects[pidx].pct = pct;
+    if (pct===100) _projects[pidx].status='COMPLETED';
+    if (_fbReady && window.DB) { await window.DB.saveProject(_projects[pidx]); await window.DB.addLog({action:'PROGRESS_UPDATE',detail:`${CT_USER.name} updated "${_projects[pidx].title}" to ${pct}%`,user:CT_USER.name}); }
+    else localStorage.setItem('pp_proj', JSON.stringify(_projects));
+  }
+  closeModal('modalProgress');
+  toast('Progress updated to ' + pct + '%!');
+  renderActiveProjects(); renderDashboard();
+}
+
+// ── CONTACT ADMIN ────────────────────────────────────
+function contactAdmin(type) {
+  if (type === 'call') {
+    window.location.href = 'tel:+91' + ADMIN_PHONE;
+  } else {
+    const subject = encodeURIComponent('Contractor Query — ' + CT_USER.name);
+    const body = encodeURIComponent(`Hello Admin,\n\nI am ${CT_USER.name} (Contractor, Mobile: +91${CT_USER.mobile}).\n\n[Write your message here]\n\nThank you.`);
+    window.location.href = `mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`;
+  }
+}
+
+function contactAdminAbout(projectTitle) {
+  const subject = encodeURIComponent('Query about: ' + projectTitle);
+  const body = encodeURIComponent(`Hello Admin,\n\nI am ${CT_USER.name} (Contractor, +91${CT_USER.mobile}).\n\nI have a query about the project: "${projectTitle}"\n\n[Write your query here]\n\nThank you.`);
+  window.location.href = `mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}&cc=${ADMIN_EMAIL}`;
+}
+
+// ── CONTRACTOR ADS ───────────────────────────────────
+async function loadContractorAds() {
+  try {
+    if (!window.DB || typeof window.DB.getAds !== 'function') return;
+    const now = new Date();
+    let ads = await window.DB.getAds();
+    ads = ads.filter(a => {
+      if (!a.active || a.deleted) return false;
+      if (a.expiresAt && new Date(a.expiresAt) <= now) return false;
+      const pt = a.publishTo || 'all';
+      return pt === 'all' || pt.includes('contractor');
+    });
+    if (!ads.length) return;
+    const ad = ads[0];
+    const el = document.getElementById('contractor-ads-strip');
+    if (!el) return;
+    el.style.display = 'block';
+    el.innerHTML = `<a href="${ad.linkUrl}" target="_blank" rel="noopener sponsored" style="display:block;text-decoration:none;">
+      <img src="${ad.imageUrl}" alt="${ad.title||'Sponsor'}" style="width:100%;max-height:90px;object-fit:cover;display:block;border-radius:12px;">
+      ${ad.caption ? `<div style="background:#1B3A7A;color:#fff;font-size:11px;padding:4px 14px;text-align:center;border-radius:0 0 12px 12px;">${ad.caption}</div>` : ''}
+    </a>`;
+  } catch(e) {}
+}
+
+// ── TOAST ────────────────────────────────────────────
+function toast(msg, type='success') {
+  const t=document.getElementById('toast');
+  document.getElementById('toastMsg').textContent=msg;
+  const icon=document.getElementById('toastIcon');
+  icon.className='fas '+(type==='error'?'fa-exclamation-circle':type==='info'?'fa-info-circle':'fa-check-circle');
+  icon.style.color=type==='error'?'#f87171':type==='info'?'#60a5fa':'#34d399';
+  t.classList.add('show');
+  clearTimeout(t._t);
+  t._t=setTimeout(()=>t.classList.remove('show'),3500);
+}
+</script>
+</body>
+</html>
